@@ -2,7 +2,13 @@
 <html lang="ko">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="NEXIVA">
+<meta name="theme-color" content="#07090d">
+<link rel="apple-touch-icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><rect width='100' height='100' rx='22' fill='%2307090d'/><text y='70' x='50' text-anchor='middle' font-size='58'>⚡</text></svg>">
 <title>NEXIVA HQ</title>
 <style>
 @import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap');
@@ -210,6 +216,53 @@ input,textarea,select{font-family:inherit;font-size:14px;outline:none}
 @keyframes typeAnim{from{width:10%}to{width:90%}}
 @keyframes wfPulse{0%,100%{opacity:1}50%{opacity:.5}}
 @keyframes spin{to{transform:rotate(360deg)}}
+
+/* ═══ 📱 모바일 전용 레이아웃 ═══ */
+@media (max-width: 680px) {
+  /* 헤더: 로고 한 줄 + 버튼 가로 스크롤 */
+  .hdr{flex-wrap:wrap;padding:8px 10px;gap:8px}
+  .hdr > div[style*="margin-left:auto"]{
+    margin-left:0 !important;width:100%;
+    overflow-x:auto;flex-wrap:nowrap;-webkit-overflow-scrolling:touch;
+    padding-bottom:2px;scrollbar-width:none;
+  }
+  .hdr > div[style*="margin-left:auto"]::-webkit-scrollbar{display:none}
+  .hdr > div[style*="margin-left:auto"] .btn{flex-shrink:0}
+
+  /* 오피스: 가로 스크롤 없애고 세로로 쌓기 */
+  .office-viewport{overflow-x:hidden}
+  .office-floor{
+    display:flex !important;flex-direction:column;
+    min-width:0 !important;min-height:0 !important;
+    gap:0;
+  }
+  .room{
+    grid-column:auto !important;grid-row:auto !important;
+    width:100%;padding:24px 10px 14px;border-width:0 0 1px 0;
+  }
+  .desk-row{gap:14px;margin-top:8px}
+
+  /* 데스크/캐릭터 살짝 키워서 터치 쉽게 */
+  .desk-unit{padding:2px 4px}
+  .name-tag{font-size:11px}
+  .role-tag{font-size:9px}
+
+  /* 회의실 카드 적당히 */
+  .room-meeting{min-height:120px}
+
+  /* 모달: 더 넓게 + 입력 편하게 */
+  .modal{max-width:100%;max-height:92vh}
+  .modal-body{padding:14px}
+  .modal-footer{padding:10px 14px;gap:6px}
+  .modal-footer .btn{flex:1 1 auto;font-size:12px;padding:9px 10px}
+
+  /* 입력창 확대(아이폰 줌 방지 위해 16px) */
+  .form-input,.form-textarea,.chat-input-row textarea{font-size:16px}
+
+  /* 워크플로우 바 글자 약간 축소 */
+  .wf-step{padding:4px 8px;font-size:10px}
+  .wf-project{font-size:10px;padding:3px 8px}
+}
 </style>
 </head>
 <body>
