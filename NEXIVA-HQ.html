@@ -1,0 +1,2512 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>NEXIVA HQ</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700;800&display=swap');
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#07090d;--surface:#0d1117;--card:#111827;--border:#1a2332;
+  --text:#e2e8f0;--muted:#4b5563;--accent:#00e5ff;
+  --green:#10b981;--yellow:#f59e0b;--red:#ef4444;--purple:#8b5cf6;
+  --floor1:#0e1520;--floor2:#0b1219;--floor3:#0c1016;
+}
+html,body{background:var(--bg);color:var(--text);font-family:'Noto Sans KR',sans-serif;height:100%;overflow:hidden}
+button{font-family:inherit;cursor:pointer;transition:all .2s}
+button:hover:not(:disabled){filter:brightness(1.2)}
+button:disabled{opacity:.4;cursor:not-allowed}
+input,textarea,select{font-family:inherit;font-size:14px;outline:none}
+::-webkit-scrollbar{width:3px}::-webkit-scrollbar-thumb{background:#1a2332;border-radius:2px}
+
+/* ── 레이아웃 */
+#shell{display:flex;flex-direction:column;height:100vh}
+
+/* ── 헤더 */
+.hdr{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;z-index:10}
+.logo{font-weight:800;font-size:15px;letter-spacing:3px;color:var(--accent)}
+.logo-sub{font-size:9px;color:var(--muted);letter-spacing:1px}
+
+/* ── 워크플로우 스텝바 */
+.workflow-bar{background:var(--surface);border-bottom:1px solid var(--border);padding:8px 16px;display:flex;align-items:center;gap:6px;flex-shrink:0;overflow-x:auto;scrollbar-width:none}
+.workflow-bar::-webkit-scrollbar{display:none}
+.wf-step{display:flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:11px;font-weight:700;border:1px solid var(--border);color:var(--muted);white-space:nowrap;transition:all .3s}
+.wf-step.active{border-color:var(--accent);color:var(--accent);background:#00e5ff10}
+.wf-step.done{border-color:var(--green);color:var(--green);background:#10b98110}
+.wf-step.waiting{border-color:var(--yellow);color:var(--yellow);background:#f59e0b10;animation:wfPulse 1.5s infinite}
+.wf-arrow{color:var(--muted);font-size:12px}
+.wf-project{margin-left:auto;font-size:11px;color:var(--green);background:#10b98111;border:1px solid #10b98133;border-radius:12px;padding:3px 10px;white-space:nowrap;flex-shrink:0}
+
+/* ── 오피스 뷰 */
+.office-viewport{flex:1;overflow:auto;position:relative;background:var(--bg)}
+.office-floor{min-width:900px;min-height:540px;width:100%;height:100%;position:relative;display:grid;grid-template-columns:1fr 1fr 1fr;grid-template-rows:auto auto;gap:0}
+
+/* ── 방 */
+.room{position:relative;border:1px solid #1a2332;padding:16px 12px 12px;overflow:visible}
+.room-label{position:absolute;top:6px;left:10px;font-size:9px;font-weight:700;letter-spacing:2px;color:var(--muted);text-transform:uppercase}
+.room-planning{background:linear-gradient(135deg,#0f1a0f 0%,var(--floor1) 100%);grid-column:1;grid-row:1}
+.room-create{background:linear-gradient(135deg,#0f150f 0%,var(--floor2) 100%);grid-column:2;grid-row:1}
+.room-quality{background:linear-gradient(135deg,#130f1a 0%,var(--floor3) 100%);grid-column:3;grid-row:1}
+.room-creative{background:linear-gradient(135deg,#1a0f0f 0%,var(--floor1) 100%);grid-column:1 / span 2;grid-row:2}
+.room-meeting{background:linear-gradient(135deg,#0a1020 0%,#0d1830 100%);grid-column:3;grid-row:2;cursor:pointer}
+.room-meeting:hover{background:linear-gradient(135deg,#0c1428,#101e38)}
+
+/* ── 데스크 행 */
+.desk-row{display:flex;gap:20px;flex-wrap:wrap;margin-top:12px;justify-content:center}
+
+/* ── 개별 데스크 유닛 */
+.desk-unit{display:flex;flex-direction:column;align-items:center;position:relative;cursor:pointer;transition:transform .2s}
+.desk-unit:hover{transform:translateY(-3px)}
+.desk-unit:hover .desk-surface{border-color:color-mix(in srgb,var(--c,#00e5ff) 60%,transparent)}
+
+/* ── 캐릭터 피규어 */
+.figure{display:flex;flex-direction:column;align-items:center;position:relative;z-index:2;margin-bottom:2px}
+.fig-head{width:28px;height:28px;border-radius:50%;background:color-mix(in srgb,var(--c,#00e5ff) 18%,#111827);border:2px solid color-mix(in srgb,var(--c,#00e5ff) 45%,transparent);display:flex;align-items:center;justify-content:center;font-size:15px;position:relative}
+.fig-body{width:20px;height:14px;background:color-mix(in srgb,var(--c,#00e5ff) 12%,#0d1117);border:1px solid color-mix(in srgb,var(--c,#00e5ff) 20%,transparent);border-radius:3px 3px 0 0;margin-top:-1px}
+.fig-legs{display:flex;gap:3px;margin-top:1px}
+.fig-leg{width:7px;height:8px;background:color-mix(in srgb,var(--c,#00e5ff) 10%,#111827);border-radius:0 0 3px 3px;border:1px solid color-mix(in srgb,var(--c,#00e5ff) 15%,transparent)}
+
+/* ── 캐릭터 애니메이션 */
+.figure.working{animation:workBob .9s ease-in-out infinite}
+.figure.idle{animation:idleSway 4s ease-in-out infinite}
+.figure.resting .fig-head::after{content:'💤';position:absolute;top:-12px;right:-8px;font-size:10px;animation:zFloat 1.5s ease-in-out infinite}
+
+/* ── 데스크 표면 */
+.desk-surface{width:60px;height:10px;background:color-mix(in srgb,var(--c,#00e5ff) 10%,#0d1218);border:1px solid color-mix(in srgb,var(--c,#00e5ff) 20%,transparent);border-radius:3px 3px 0 0;position:relative;display:flex;align-items:center;justify-content:center;gap:4px}
+.desk-monitor{width:18px;height:13px;background:#050810;border:1.5px solid color-mix(in srgb,var(--c,#00e5ff) 40%,transparent);border-radius:2px;display:flex;align-items:center;justify-content:center;overflow:hidden}
+.desk-monitor.on{box-shadow:0 0 6px color-mix(in srgb,var(--c,#00e5ff) 50%,transparent)}
+.monitor-lines{display:flex;flex-direction:column;gap:1.5px;padding:2px;width:100%}
+.m-line{height:1.5px;background:var(--c,#00e5ff);border-radius:1px;opacity:.6}
+.m-line.typing{animation:typeAnim .6s steps(4) infinite alternate}
+.monitor-check{color:var(--green);font-size:8px}
+.desk-leg-l,.desk-leg-r{width:3px;height:12px;background:color-mix(in srgb,var(--c,#00e5ff) 12%,#0d1117);position:absolute;bottom:-12px}
+.desk-leg-l{left:8px}.desk-leg-r{right:8px}
+.desk-chair{width:14px;height:10px;background:color-mix(in srgb,var(--c,#00e5ff) 8%,#0d1117);border:1px solid color-mix(in srgb,var(--c,#00e5ff) 12%,transparent);border-radius:2px 2px 0 0;margin-top:12px}
+
+/* ── 이름 태그 */
+.name-tag{font-size:10px;font-weight:700;color:color-mix(in srgb,var(--c,#00e5ff) 80%,var(--text));margin-top:6px;text-align:center}
+.role-tag{font-size:8px;color:var(--muted);text-align:center;letter-spacing:.5px}
+
+/* ── 말풍선 */
+.speech{position:absolute;top:-30px;left:50%;transform:translateX(-50%);background:color-mix(in srgb,var(--c,#00e5ff) 12%,#0d1117);border:1px solid color-mix(in srgb,var(--c,#00e5ff) 30%,transparent);border-radius:8px 8px 8px 0;padding:4px 7px;font-size:9px;white-space:nowrap;z-index:10;pointer-events:none;animation:fadeIn .3s}
+.speech::after{content:'';position:absolute;bottom:-4px;left:6px;width:0;height:0;border-left:4px solid transparent;border-right:4px solid transparent;border-top:4px solid color-mix(in srgb,var(--c,#00e5ff) 30%,transparent)}
+
+/* ── 작업 진행 배지 */
+.task-badge{position:absolute;top:-8px;right:-8px;width:16px;height:16px;border-radius:50%;font-size:9px;display:flex;align-items:center;justify-content:center;font-weight:700;z-index:5}
+.task-badge.working{background:var(--accent);color:#000;animation:blink .8s infinite}
+.task-badge.done{background:var(--green);color:#000}
+.task-badge.error{background:var(--red);color:#fff}
+.task-badge.resting{background:var(--yellow);color:#000}
+
+/* ── 회의실 씬 */
+.meeting-table{width:80px;height:44px;background:#0a1220;border:1.5px solid #1a2e50;border-radius:10px;margin:16px auto 0;position:relative;display:flex;align-items:center;justify-content:center}
+.meeting-table-top{font-size:9px;color:#1a3a5c;font-weight:700;letter-spacing:1px}
+.meeting-chairs{display:flex;justify-content:space-around;margin-top:4px}
+.meeting-chair{width:12px;height:8px;background:#0d1829;border:1px solid #1a2e50;border-radius:2px}
+.meeting-label-big{font-size:20px;text-align:center;margin-top:8px}
+.room-meeting .room-label-sub{font-size:10px;color:#1a3a5c;text-align:center;margin-top:4px}
+
+/* ── 하단 컨트롤 패널 */
+.ctrl-bar{background:var(--surface);border-top:1px solid var(--border);padding:10px 16px;display:flex;align-items:center;gap:10px;flex-shrink:0;flex-wrap:wrap}
+.btn{padding:8px 16px;border-radius:8px;font-size:12px;font-weight:700;border:none;cursor:pointer;font-family:inherit;transition:all .2s}
+.btn:hover:not(:disabled){filter:brightness(1.2);transform:translateY(-1px)}
+.btn:disabled{opacity:.4;cursor:not-allowed}
+.btn-accent{background:#00e5ff18;border:1px solid #00e5ff55;color:var(--accent)}
+.btn-green{background:#10b98118;border:1px solid #10b98155;color:var(--green)}
+.btn-yellow{background:#f59e0b18;border:1px solid #f59e0b55;color:var(--yellow)}
+.btn-red{background:#ef444418;border:1px solid #ef444455;color:var(--red)}
+.btn-purple{background:#8b5cf618;border:1px solid #8b5cf655;color:var(--purple)}
+.ctrl-hint{font-size:11px;color:var(--muted);flex:1;min-width:0}
+
+/* ── 오버레이 모달 */
+.overlay{position:fixed;inset:0;background:#000b;z-index:100;display:flex;align-items:flex-end;justify-content:center;animation:fadeIn .2s}
+.modal{background:var(--surface);border-radius:20px 20px 0 0;width:100%;max-width:640px;max-height:88vh;display:flex;flex-direction:column;overflow:hidden}
+.modal-header{padding:16px 20px;border-bottom:1px solid var(--border);display:flex;justify-content:space-between;align-items:center;flex-shrink:0}
+.modal-title{font-weight:700;font-size:15px}
+.modal-body{flex:1;overflow-y:auto;padding:16px 20px}
+.modal-footer{padding:12px 20px;border-top:1px solid var(--border);display:flex;gap:8px;flex-shrink:0;flex-wrap:wrap}
+.x-btn{background:none;border:none;color:var(--muted);font-size:22px;cursor:pointer;padding:2px;line-height:1}
+
+/* ── 채팅 */
+.chat-box{display:flex;flex-direction:column;gap:10px;margin-bottom:12px}
+.msg{display:flex;gap:8px;align-items:flex-end}
+.msg.user{flex-direction:row-reverse}
+.msg-av{width:28px;height:28px;border-radius:8px;font-size:14px;display:flex;align-items:center;justify-content:center;flex-shrink:0}
+.msg-bubble{max-width:80%;padding:9px 12px;border-radius:12px;font-size:13px;line-height:1.7;white-space:pre-wrap;word-break:break-word}
+.msg.ai .msg-bubble{background:var(--card);border:1px solid var(--border)}
+.msg.user .msg-bubble{background:#00e5ff18;border:1px solid #00e5ff33}
+.msg-name{font-size:10px;font-weight:700;margin-bottom:3px}
+.typing{display:flex;gap:4px;padding:8px 4px}
+.typing span{width:6px;height:6px;border-radius:50%;background:var(--accent);animation:bounce .8s infinite}
+.typing span:nth-child(2){animation-delay:.15s}
+.typing span:nth-child(3){animation-delay:.3s}
+.chat-input-row{display:flex;gap:8px}
+.chat-input-row textarea{flex:1;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:9px 12px;color:var(--text);resize:none;height:60px;font-size:13px}
+
+/* ── 아이템 카드 */
+.idea-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px}
+@media(max-width:500px){.idea-grid{grid-template-columns:1fr}}
+.idea-card{background:var(--card);border:1px solid var(--border);border-top:2px solid var(--yellow);border-radius:12px;padding:14px;cursor:pointer;transition:all .2s}
+.idea-card:hover,.idea-card.selected{border-color:var(--accent);background:#00e5ff08}
+.idea-card.selected{border-top-color:var(--accent)}
+.idea-name{font-weight:700;font-size:14px;margin-bottom:6px}
+.idea-tags{display:flex;gap:5px;flex-wrap:wrap;margin-bottom:8px}
+.tag{font-size:10px;padding:2px 7px;border-radius:4px}
+.idea-plan{font-size:11px;color:var(--muted);line-height:1.5}
+
+/* ── 진행상황 트래커 */
+.task-tracker{display:flex;flex-direction:column;gap:10px}
+.task-row{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px 14px;display:flex;align-items:center;gap:10px}
+.task-emp{display:flex;align-items:center;gap:7px;width:100px;flex-shrink:0}
+.task-emp-emoji{font-size:18px}
+.task-emp-name{font-size:12px;font-weight:700}
+.task-progress{flex:1}
+.task-status-text{font-size:11px;margin-bottom:5px;color:var(--muted)}
+.progress-bar{height:4px;background:var(--border);border-radius:2px;overflow:hidden}
+.progress-fill{height:100%;border-radius:2px;transition:width .5s}
+.task-done-text{font-size:11px;color:var(--green);font-weight:700}
+
+/* ── 알림 배너 */
+.notif{position:fixed;top:16px;right:16px;background:var(--surface);border:1px solid var(--accent);border-radius:14px;padding:14px 18px;max-width:320px;z-index:200;animation:slideLeft .3s ease;box-shadow:0 8px 32px #000a}
+.notif-title{font-weight:700;font-size:14px;color:var(--accent);margin-bottom:4px}
+.notif-body{font-size:12px;color:var(--text);line-height:1.6;margin-bottom:10px}
+.notif-actions{display:flex;gap:7px}
+
+/* ── 검토 패널 */
+.review-result{background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;max-height:200px;overflow-y:auto;font-size:12px;line-height:1.7;white-space:pre-wrap;margin-bottom:12px}
+.form-label{font-size:11px;color:var(--muted);letter-spacing:.8px;margin-bottom:5px;display:block}
+.form-input{width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px}
+.form-textarea{width:100%;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:9px 12px;color:var(--text);font-size:13px;resize:vertical;min-height:80px}
+
+/* ── 완료 프로젝트 목록 */
+.done-list{padding:16px;max-width:700px;margin:0 auto}
+.done-card{background:var(--card);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:10px;padding:14px;margin-bottom:10px}
+.done-header{display:flex;justify-content:space-between;align-items:center;margin-bottom:6px}
+.done-name{font-weight:700;font-size:14px;color:var(--green)}
+.done-time{font-size:11px;color:var(--muted)}
+.done-actions{display:flex;gap:7px;margin-top:8px}
+
+/* ── API 게이트 */
+#gate{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:999;padding:20px}
+.gate-box{background:var(--surface);border:1px solid var(--border);border-top:3px solid var(--accent);border-radius:18px;padding:32px 28px;width:100%;max-width:380px;text-align:center}
+
+/* ── 직원 편집 폼 */
+.emoji-row{display:flex;flex-wrap:wrap;gap:6px;margin-top:6px}
+.ep{width:34px;height:34px;border-radius:7px;background:var(--card);border:1.5px solid var(--border);font-size:16px;display:flex;align-items:center;justify-content:center;cursor:pointer}
+.ep.sel,.ep:hover{border-color:var(--accent);background:#00e5ff10}
+.color-row{display:flex;flex-wrap:wrap;gap:7px;margin-top:6px}
+.cp{width:26px;height:26px;border-radius:50%;cursor:pointer;border:2px solid transparent}
+.cp.sel{border-color:#fff;transform:scale(1.15)}
+
+/* ── 애니메이션 */
+@keyframes workBob{0%,100%{transform:translateY(0)}50%{transform:translateY(-3px)}}
+@keyframes idleSway{0%,100%{transform:rotate(0deg)}25%{transform:rotate(-2deg)}75%{transform:rotate(2deg)}}
+@keyframes zFloat{0%,100%{transform:translateY(0) rotate(-10deg)}50%{transform:translateY(-4px) rotate(10deg)}}
+@keyframes blink{0%,100%{opacity:1}50%{opacity:.3}}
+@keyframes bounce{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+@keyframes fadeIn{from{opacity:0}to{opacity:1}}
+@keyframes slideLeft{from{transform:translateX(100%)}to{transform:translateX(0)}}
+@keyframes typeAnim{from{width:10%}to{width:90%}}
+@keyframes wfPulse{0%,100%{opacity:1}50%{opacity:.5}}
+@keyframes spin{to{transform:rotate(360deg)}}
+</style>
+</head>
+<body>
+
+<div id="gate">
+  <div class="gate-box">
+    <div style="font-size:34px;margin-bottom:10px">⚡</div>
+    <div style="font-weight:800;font-size:20px;letter-spacing:3px;color:var(--accent);margin-bottom:5px">NEXIVA HQ</div>
+    <div style="font-size:12px;color:var(--muted);margin-bottom:22px">직원들이 출근 대기 중입니다</div>
+    <input id="keyInput" type="password" placeholder="Claude API 키 (sk-ant-...)"
+      style="width:100%;background:var(--card);border:1px solid var(--border);border-radius:9px;padding:11px 13px;color:var(--text);font-size:14px;margin-bottom:8px;display:block"/>
+    <div id="keyErr" style="font-size:11px;color:var(--red);margin-bottom:8px;display:none">올바른 API 키를 입력해주세요</div>
+    <button onclick="startApp()" style="width:100%;padding:12px;background:#00e5ff18;border:1px solid #00e5ff66;border-radius:9px;color:var(--accent);font-size:14px;font-weight:700;font-family:inherit">🚀 출근 시작</button>
+    <div style="font-size:10px;color:var(--muted);margin-top:10px">키는 이 기기에만 저장됩니다</div>
+  </div>
+</div>
+
+<div id="shell" style="display:none">
+
+  <!-- 헤더 -->
+  <div class="hdr">
+    <div class="logo-icon" style="width:28px;height:28px;border-radius:7px;background:#00e5ff15;border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px">⚡</div>
+    <div><div class="logo">NEXIVA</div><div class="logo-sub">AI COMPANY</div></div>
+    <div style="display:flex;gap:7px;margin-left:auto">
+      <button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="openManage()">👥 직원관리</button>
+      <button class="btn btn-green" style="padding:5px 11px;font-size:11px" onclick="openMcpCenter()">🔌 연동(MCP)</button>
+      <button class="btn btn-green" style="padding:5px 11px;font-size:11px" onclick="openRevenue()">💰 매출</button>
+      <button class="btn btn-purple" style="padding:5px 11px;font-size:11px" onclick="openDoneList()">📋 완료목록</button>
+      <button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="openSettings()">⚙️ 설정</button>
+    </div>
+  </div>
+
+  <!-- 워크플로우 스텝바 -->
+  <div class="workflow-bar" id="wfBar"></div>
+
+  <!-- 오피스 뷰 -->
+  <div class="office-viewport">
+    <div class="office-floor" id="officeFloor"></div>
+  </div>
+
+  <!-- 하단 컨트롤 -->
+  <div class="ctrl-bar" id="ctrlBar"></div>
+
+</div>
+
+<script>
+// ═══════════════════════════════════════════════
+//  상수 & 기본값
+// ═══════════════════════════════════════════════
+const MODEL = 'claude-sonnet-4-6';
+const MAX_TOKENS = 4000;
+
+const DEFAULT_STAFF = [
+  {id:'planner',   name:'박준서', role:'전략기획팀장', dept:'기획팀',      emoji:'💡', color:'#f59e0b',
+   prompt:'당신은 NEXIVA 전략기획팀장 박준서입니다. 한국(크몽)·미국(Gumroad)·일본 시장에서 수익 나는 사업 아이템을 발굴합니다. 음악·비트·영상·콘텐츠·디지털 상품 등 분야 제한 없음. 항상 구체적 수치와 실행 가능한 계획을 제시하세요.',
+   idle:['새 아이템 구상 중...','시장 트렌드 보는 중...','아이디어 정리 중...']},
+  {id:'researcher',name:'김민재', role:'리서치 담당',  dept:'기획팀',      emoji:'🔍', color:'#00e5ff',
+   prompt:'당신은 NEXIVA 리서치 담당 김민재입니다. 경쟁 분석, 수요 조사, 시장 리포트 전문. 반드시 숫자와 사례 근거로 답변. 경쟁강도 1~10점 수치화, 예상 수익 구체적 금액.',
+   idle:['Gumroad 크롤링 중...','경쟁사 분석 중...','키워드 볼륨 체크...']},
+  {id:'docmaker',  name:'이수아', role:'콘텐츠 제작',  dept:'제작팀',      emoji:'📄', color:'#10b981',
+   prompt:'당신은 NEXIVA 콘텐츠 제작 담당 이수아입니다. 크몽 19,900~49,000원에 팔릴 디지털 상품 제작. A4 20페이지 이상, 목차+본문+체크리스트+템플릿 완비. 절대 생략 금지.',
+   idle:['목차 구조 짜는 중...','템플릿 설계 중...','내용 밀도 높이는 중...']},
+  {id:'designer',  name:'한채원', role:'디자인 기획',  dept:'제작팀',      emoji:'🎨', color:'#a78bfa',
+   prompt:'당신은 NEXIVA 디자인 기획 담당 한채원입니다. Canva 기획안 작성 전문. 상품 표지·썸네일·SNS 카드뉴스. 구성·색상코드·폰트·레이아웃·텍스트 배치를 상세히 지정. NEXIVA 브랜드: 다크(#07090d)+시안(#00e5ff).',
+   idle:['컬러 팔레트 고민 중...','레이아웃 구상 중...','Canva 템플릿 보는 중...']},
+  {id:'editor',    name:'정도윤', role:'편집장',        dept:'품질팀',      emoji:'🎯', color:'#8b5cf6',
+   prompt:'당신은 NEXIVA 편집장 정도윤입니다. 팀 결과물을 취합해 최종 완성본을 만듭니다. 리서치+콘텐츠+디자인 기획을 통합하여 크몽 판매 최적화 최종본 제작. 품질 기준: 크몽 상위 1% 수준.',
+   idle:['퀄리티 체크 중...','최종 검수 준비 중...','기준 높게 잡는 중...']},
+  {id:'music',     name:'이준혁', role:'음악 프로듀서', dept:'크리에이티브', emoji:'🎵', color:'#f97316',
+   prompt:'당신은 NEXIVA 음악 프로듀서 이준혁입니다. Suno AI, Udio, Stable Audio 활용 음악 제작 기획 전문. 장르별 AI 프롬프트, 가사 작사, 음악 상품화 전략. 유튜브 BGM·광고음악·힐링음악 수익화 기획.',
+   idle:['비트 패턴 구상 중...','Suno 프롬프트 실험 중...','장르 트렌드 체크...']},
+  {id:'beatmaker', name:'강민호', role:'비트 메이커',   dept:'크리에이티브', emoji:'🥁', color:'#ef4444',
+   prompt:'당신은 NEXIVA 비트 메이커 강민호입니다. BeatStars·Airbit·크몽 비트 판매 전문. 힙합·트랩·로파이·팝 장르별 비트 구조 설계, AI 도구 프롬프트, 비트 태그·메타데이터 최적화.',
+   idle:['808 패턴 짜는 중...','트랩 비트 구상 중...','드럼 배치 실험 중...']},
+  {id:'video',     name:'서예린', role:'영상 기획자',   dept:'크리에이티브', emoji:'🎬', color:'#06b6d4',
+   prompt:'당신은 NEXIVA 영상 기획자 서예린입니다. 유튜브·숏폼 콘텐츠 기획 전문. 조회수 높은 제목·썸네일·스크립트 설계. Runway/Pika/HeyGen AI 영상 도구 활용 가이드.',
+   idle:['훅 구조 고민 중...','인트로 3초 설계 중...','스크립트 리듬 잡는 중...']},
+  {id:'cfo',       name:'윤서진', role:'CFO',           dept:'경영지원',    emoji:'💰', color:'#10b981',
+   prompt:'당신은 NEXIVA CFO 윤서진입니다. 예산 관리, 수익 예측, ROI 분석 전문. 초기예산 10만원. 목표: 3개월 500만/6개월 1000만원. 항상 구체적 수치·리스크 수치화·시나리오별 분석.',
+   idle:['ROI 계산 중...','현금흐름 시뮬레이션...','수익 모델 재검토 중...']},
+];
+
+const EMOJI_LIST = ['💡','🔍','📄','🎨','🎯','🎵','🥁','🎬','💰','🚀','⚡','🤖','📊','🌐','💼','🛠️','📱','🎮','🎤','🎧','📸','✍️','🌟','🔥','💎','📝','🏆','⚙️','🦾','🧠'];
+const COLOR_LIST = ['#f59e0b','#00e5ff','#10b981','#ec4899','#8b5cf6','#a78bfa','#f97316','#ef4444','#06b6d4','#84cc16','#e879f9','#fb923c'];
+
+// ═══════════════════════════════════════════════
+//  상태
+// ═══════════════════════════════════════════════
+let API_KEY = localStorage.getItem('nx_key') || '';
+let STAFF = loadStaff();
+let wfState = 'idle'; // idle | planning | meeting | working | reviewing | revising
+let currentProject = null;
+let currentIdeas = [];
+let selectedIdea = null;
+let taskResults = {};
+let taskStatus = {}; // staffId -> idle|working|done|error|resting
+let taskDesc = {};   // staffId -> 현재 업무 설명
+let streamBuf = {};  // staffId -> 실시간 스트리밍 텍스트
+let restTimers = {};
+let speechTimers = {};
+let speechActive = {};
+let completedProjects = JSON.parse(localStorage.getItem('nx_done') || '[]');
+let meetingHistory = [];
+let meetingLoading = false;
+let staffEditId = null;
+let editEmoji = '🤖';
+let editColor = '#00e5ff';
+let mcpServers = JSON.parse(localStorage.getItem('nx_mcp') || '[]'); // {id,name,url,token,enabled}
+function saveMcp() { localStorage.setItem('nx_mcp', JSON.stringify(mcpServers)); cloudPush(); }
+
+// ── Suno(음악) API 설정
+let sunoCfg = JSON.parse(localStorage.getItem('nx_suno') || 'null') || {
+  baseUrl:'', apiKey:'', mode:'sync', model:'', instrumental:true
+};
+function saveSuno() { localStorage.setItem('nx_suno', JSON.stringify(sunoCfg)); cloudPush(); }
+
+// ── 실시간 클라우드 동기화 (Firebase Realtime DB, SDK 없이 REST/SSE)
+let cloudCfg = JSON.parse(localStorage.getItem('nx_cloud') || 'null') || { dbUrl:'', code:'', enabled:false };
+function saveCloudCfg() { localStorage.setItem('nx_cloud', JSON.stringify(cloudCfg)); }
+let cloudApplying = false;   // 원격 적용 중 (로컬 푸시 억제)
+let cloudPushTimer = null;
+let cloudES = null;          // EventSource
+let cloudStatus = 'off';     // off | connecting | live | error
+
+function cloudUrl() {
+  return cloudCfg.dbUrl.replace(/\/$/,'') + '/nexiva/' + encodeURIComponent(cloudCfg.code) + '.json';
+}
+
+function cloudPush() {
+  if (!cloudCfg.enabled || !cloudCfg.dbUrl || !cloudCfg.code) return;
+  if (cloudApplying) return; // 원격에서 받은 변경은 되쏘지 않음
+  clearTimeout(cloudPushTimer);
+  cloudPushTimer = setTimeout(async () => {
+    const payload = {
+      staff: localStorage.getItem('nx_staff'),
+      done: localStorage.getItem('nx_done'),
+      mcp: localStorage.getItem('nx_mcp'),
+      suno: localStorage.getItem('nx_suno'),
+      ts: Date.now()
+    };
+    try { await fetch(cloudUrl(), { method:'PUT', body: JSON.stringify(payload) }); }
+    catch(e) {}
+  }, 700);
+}
+
+function applyCloudData(d) {
+  if (!d) return;
+  cloudApplying = true;
+  try {
+    if (d.staff != null) { localStorage.setItem('nx_staff', d.staff); STAFF = JSON.parse(d.staff); }
+    if (d.done != null) { localStorage.setItem('nx_done', d.done); completedProjects = JSON.parse(d.done); }
+    if (d.mcp != null) { localStorage.setItem('nx_mcp', d.mcp); mcpServers = JSON.parse(d.mcp); }
+    if (d.suno != null) { localStorage.setItem('nx_suno', d.suno); sunoCfg = JSON.parse(d.suno); }
+    renderAll();
+  } catch(e) {}
+  setTimeout(() => { cloudApplying = false; }, 150);
+}
+
+function cloudConnect() {
+  cloudDisconnect();
+  if (!cloudCfg.enabled || !cloudCfg.dbUrl || !cloudCfg.code) { cloudStatus='off'; return; }
+  cloudStatus = 'connecting'; updateCloudBadge();
+  try {
+    cloudES = new EventSource(cloudUrl()); // EventSource는 Accept: text/event-stream 자동 전송
+    const handler = (ev) => {
+      try {
+        const msg = JSON.parse(ev.data);
+        if (msg && msg.data) applyCloudData(msg.data);
+        cloudStatus = 'live'; updateCloudBadge();
+      } catch(e) {}
+    };
+    cloudES.addEventListener('put', handler);
+    cloudES.addEventListener('patch', handler);
+    cloudES.onopen = () => { cloudStatus='live'; updateCloudBadge(); };
+    cloudES.onerror = () => { cloudStatus='error'; updateCloudBadge(); }; // 브라우저가 자동 재연결
+  } catch(e) { cloudStatus='error'; updateCloudBadge(); }
+}
+
+function cloudDisconnect() {
+  if (cloudES) { try { cloudES.close(); } catch(e){} cloudES = null; }
+}
+
+function updateCloudBadge() {
+  const el = document.getElementById('cloudBadge');
+  if (!el) return;
+  const map = { off:['⚪','미연결','var(--muted)'], connecting:['🟡','연결 중...','var(--yellow)'], live:['🟢','실시간 동기화 중','var(--green)'], error:['🔴','재연결 중...','var(--red)'] };
+  const [icon,txt,col] = map[cloudStatus] || map.off;
+  el.innerHTML = `<span style="color:${col}">${icon} ${txt}</span>`;
+}
+
+// 활성화된 MCP 서버를 API 형식으로 변환
+function activeMcpPayload() {
+  const enabled = mcpServers.filter(m => m.enabled && m.url);
+  if (!enabled.length) return null;
+  return enabled.map(m => {
+    const o = { type:'url', url:m.url, name:(m.name||'server').replace(/[^a-zA-Z0-9_-]/g,'_') };
+    if (m.token) o.authorization_token = m.token;
+    return o;
+  });
+}
+
+function loadStaff() {
+  try { const s = localStorage.getItem('nx_staff'); if (s) return JSON.parse(s); } catch(e) {}
+  const d = JSON.parse(JSON.stringify(DEFAULT_STAFF));
+  localStorage.setItem('nx_staff', JSON.stringify(d));
+  return d;
+}
+function saveStaff() { localStorage.setItem('nx_staff', JSON.stringify(STAFF)); cloudPush(); }
+function saveDone() { localStorage.setItem('nx_done', JSON.stringify(completedProjects.slice(0,30))); cloudPush(); }
+
+// ═══════════════════════════════════════════════
+//  API 키 게이트
+// ═══════════════════════════════════════════════
+if (API_KEY.startsWith('sk-ant-')) { document.getElementById('gate').style.display='none'; document.getElementById('shell').style.display='flex'; setTimeout(boot,0); }
+else { document.getElementById('keyInput').addEventListener('keydown', e => { if(e.key==='Enter') startApp(); }); }
+
+function startApp() {
+  const k = document.getElementById('keyInput').value.trim();
+  if (!k.startsWith('sk-ant-')) { document.getElementById('keyErr').style.display='block'; return; }
+  API_KEY = k; localStorage.setItem('nx_key', k);
+  document.getElementById('gate').style.display='none';
+  document.getElementById('shell').style.display='flex';
+  boot();
+}
+
+// ═══════════════════════════════════════════════
+//  Claude API
+// ═══════════════════════════════════════════════
+async function callClaude(system, messages, staffId) {
+  for (let attempt = 0; attempt < 3; attempt++) {
+    let res;
+    try {
+      const headers = {'Content-Type':'application/json','x-api-key':API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
+      const body = {model:MODEL, max_tokens:MAX_TOKENS, system, messages};
+      const mcp = activeMcpPayload();
+      if (mcp) { body.mcp_servers = mcp; headers['anthropic-beta'] = 'mcp-client-2025-04-04'; }
+      res = await fetch('https://api.anthropic.com/v1/messages', {
+        method:'POST', headers, body: JSON.stringify(body)
+      });
+    } catch(e) { throw new Error('네트워크 오류: ' + e.message); }
+
+    if (res.status === 429 || res.status === 529 || res.status === 503) {
+      const wait = parseInt(res.headers.get('retry-after')||'60',10);
+      if (staffId) startRest(staffId, wait);
+      if (attempt < 2) { await sleep(wait * 1000); if (staffId) { taskStatus[staffId]='working'; renderOffice(); } continue; }
+      throw new Error('rate_limit:' + wait);
+    }
+    const data = await res.json();
+    if (data.error) {
+      if (/rate_limit|overloaded/i.test(data.error.type||'')) {
+        if (staffId) startRest(staffId, 60);
+        throw new Error('rate_limit:60');
+      }
+      throw new Error(data.error.message || JSON.stringify(data.error));
+    }
+    // MCP 사용 시 tool_use 블록이 섞일 수 있으므로 text 블록만 추출
+    const textBlocks = (data.content || []).filter(c => c.type === 'text').map(c => c.text);
+    return textBlocks.join('\n') || '(응답 없음)';
+  }
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+
+// ── 스트리밍 Claude API (글자 단위 실시간)
+async function callClaudeStream(system, messages, staffId, onChunk) {
+  let res;
+  try {
+    const headers = {
+      'Content-Type': 'application/json',
+      'x-api-key': API_KEY,
+      'anthropic-version': '2023-06-01',
+      'anthropic-dangerous-direct-browser-access': 'true'
+    };
+    const body = { model: MODEL, max_tokens: MAX_TOKENS, system, messages, stream: true };
+    const mcp = activeMcpPayload();
+    if (mcp) { body.mcp_servers = mcp; headers['anthropic-beta'] = 'mcp-client-2025-04-04'; }
+    res = await fetch('https://api.anthropic.com/v1/messages', {
+      method: 'POST', headers, body: JSON.stringify(body)
+    });
+  } catch(e) { throw new Error('네트워크 오류: ' + e.message); }
+
+  if (res.status === 429 || res.status === 529 || res.status === 503) {
+    const wait = parseInt(res.headers.get('retry-after') || '60', 10);
+    if (staffId) startRest(staffId, wait);
+    throw new Error('rate_limit:' + wait);
+  }
+  if (!res.ok) {
+    const d = await res.json().catch(()=>({}));
+    throw new Error(d.error?.message || 'HTTP ' + res.status);
+  }
+
+  const reader = res.body.getReader();
+  const dec = new TextDecoder();
+  let full = '';
+  let buf = '';
+
+  while (true) {
+    const { done, value } = await reader.read();
+    if (done) break;
+    buf += dec.decode(value, { stream: true });
+    const lines = buf.split('\n');
+    buf = lines.pop();
+    for (const line of lines) {
+      if (!line.startsWith('data: ')) continue;
+      const raw = line.slice(6).trim();
+      if (raw === '[DONE]') continue;
+      try {
+        const ev = JSON.parse(raw);
+        if (ev.type === 'content_block_delta' && ev.delta?.text) {
+          full += ev.delta.text;
+          if (onChunk) onChunk(full);
+        }
+        if (ev.type === 'error') throw new Error(ev.error?.message || 'stream error');
+      } catch(e) { if (e.message.includes('stream error')) throw e; }
+    }
+  }
+  return full;
+}
+
+function startRest(staffId, seconds) {
+  if (restTimers[staffId]) clearInterval(restTimers[staffId].iv);
+  taskStatus[staffId] = 'resting';
+  restTimers[staffId] = { rem: seconds };
+  renderOffice();
+  restTimers[staffId].iv = setInterval(() => {
+    restTimers[staffId].rem--;
+    const el = document.getElementById('rest-' + staffId);
+    if (el) el.textContent = fmtTime(restTimers[staffId].rem);
+    if (restTimers[staffId].rem <= 0) {
+      clearInterval(restTimers[staffId].iv);
+      delete restTimers[staffId];
+      if (taskStatus[staffId] === 'resting') { taskStatus[staffId]='idle'; renderOffice(); }
+    }
+  }, 1000);
+}
+
+function fmtTime(s) { const m=Math.floor(s/60); return m>0?m+'분 '+( s%60)+'초':(s)+'초'; }
+
+// ═══════════════════════════════════════════════
+//  워크플로우 스텝바 렌더
+// ═══════════════════════════════════════════════
+const WF_STEPS = [
+  {id:'idle',    label:'🏢 대기'},
+  {id:'planning',label:'💡 아이템 발굴'},
+  {id:'meeting', label:'🏛️ 회의'},
+  {id:'working', label:'⚙️ 제작 중'},
+  {id:'reviewing',label:'📋 검토 대기'},
+];
+
+function renderWFBar() {
+  const order = ['idle','planning','meeting','working','reviewing'];
+  const cur = order.indexOf(wfState);
+  const html = WF_STEPS.map((s, i) => {
+    let cls = 'wf-step';
+    if (i < cur) cls += ' done';
+    else if (i === cur) cls += (wfState==='working'?' waiting':' active');
+    return `<div class="${cls}">${s.label}</div>` + (i<WF_STEPS.length-1?'<div class="wf-arrow">›</div>':'');
+  }).join('');
+  const projHtml = currentProject ? `<div class="wf-project">🚀 ${currentProject.name}</div>` : '';
+  document.getElementById('wfBar').innerHTML = html + projHtml;
+}
+
+// ═══════════════════════════════════════════════
+//  오피스 플로어 렌더
+// ═══════════════════════════════════════════════
+function getByDept(dept) { return STAFF.filter(s => s.dept===dept); }
+
+function renderOffice() {
+  const rooms = [
+    {cls:'room-planning', label:'기획팀', staff: STAFF.filter(s=>s.dept==='기획팀')},
+    {cls:'room-create',   label:'제작팀', staff: STAFF.filter(s=>s.dept==='제작팀')},
+    {cls:'room-quality',  label:'품질팀', staff: STAFF.filter(s=>s.dept==='품질팀')},
+    {cls:'room-creative', label:'크리에이티브', staff: STAFF.filter(s=>s.dept==='크리에이티브')},
+  ];
+
+  const roomsHtml = rooms.map(r => `
+    <div class="room ${r.cls}">
+      <div class="room-label">${r.label}</div>
+      <div class="desk-row">
+        ${r.staff.map(s => deskHtml(s)).join('')}
+      </div>
+    </div>
+  `).join('');
+
+  const meetingHtml = `
+    <div class="room room-meeting" onclick="wfState==='meeting'?openMeetingModal():null">
+      <div class="room-label">회의실</div>
+      <div class="meeting-table">
+        <div class="meeting-table-top">MEETING</div>
+      </div>
+      <div class="meeting-chairs">
+        <div class="meeting-chair"></div>
+        <div class="meeting-chair"></div>
+        <div class="meeting-chair"></div>
+        <div class="meeting-chair"></div>
+      </div>
+      <div style="text-align:center;margin-top:8px;font-size:${wfState==='meeting'?'16':'22'}px">${wfState==='meeting'?'💬 회의 진행중':'🏛️'}</div>
+      ${wfState==='meeting'?'<div style="font-size:10px;color:var(--accent);text-align:center;margin-top:4px">클릭하여 입장</div>':''}
+    </div>
+  `;
+
+  // 경영지원 (CFO만)
+  const cfoStaff = STAFF.filter(s=>s.dept==='경영지원');
+
+  document.getElementById('officeFloor').innerHTML = `
+    ${roomsHtml}
+    ${meetingHtml}
+  `;
+
+  // CFO를 크리에이티브 방에 추가
+  const creativeRoom = document.querySelector('.room-creative .desk-row');
+  if (creativeRoom && cfoStaff.length) {
+    creativeRoom.innerHTML += cfoStaff.map(s => deskHtml(s)).join('');
+  }
+}
+
+function deskHtml(s) {
+  const st = taskStatus[s.id] || 'idle';
+  const isWorking = st === 'working';
+  const isDone = st === 'done';
+  const isResting = st === 'resting';
+  const isIdle = st === 'idle';
+
+  let badgeHtml = '';
+  if (isWorking) badgeHtml = `<div class="task-badge working">⚡</div>`;
+  else if (isDone) badgeHtml = `<div class="task-badge done">✓</div>`;
+  else if (isResting) badgeHtml = `<div class="task-badge resting">😴</div>`;
+
+  const figClass = isWorking ? 'working' : isResting ? 'resting' : 'idle';
+  const monitorInner = isWorking
+    ? `<div class="monitor-lines"><div class="m-line typing"></div><div class="m-line typing" style="animation-delay:.2s"></div><div class="m-line" style="width:40%;opacity:.4"></div></div>`
+    : isDone
+    ? `<div class="monitor-check">✓</div>`
+    : '';
+  const monitorCls = isWorking ? 'desk-monitor on' : 'desk-monitor';
+
+  const speechHtml = speechActive[s.id]
+    ? `<div class="speech" style="--c:${s.color}">${speechActive[s.id]}</div>`
+    : '';
+
+  const restHtml = isResting && restTimers[s.id]
+    ? `<div style="position:absolute;top:-44px;left:50%;transform:translateX(-50%);background:#f59e0b15;border:1px solid #f59e0b44;border-radius:8px;padding:3px 6px;font-size:9px;color:#f59e0b;white-space:nowrap;z-index:10">😴 <span id="rest-${s.id}">${fmtTime(restTimers[s.id].rem)}</span></div>`
+    : '';
+
+  return `
+    <div class="desk-unit" style="--c:${s.color}" onclick="openStaffChat('${s.id}')" title="${s.name} — ${s.role}">
+      ${badgeHtml}
+      ${speechHtml}
+      ${restHtml}
+      <div class="figure ${figClass}">
+        <div class="fig-head" style="background:color-mix(in srgb,${s.color} 18%,#111827);border-color:color-mix(in srgb,${s.color} 45%,transparent)">${isResting?'😴':s.emoji}</div>
+        <div class="fig-body" style="background:color-mix(in srgb,${s.color} 12%,#0d1117);border-color:color-mix(in srgb,${s.color} 20%,transparent)"></div>
+        <div class="fig-legs">
+          <div class="fig-leg" style="background:color-mix(in srgb,${s.color} 10%,#111827);border-color:color-mix(in srgb,${s.color} 15%,transparent)"></div>
+          <div class="fig-leg" style="background:color-mix(in srgb,${s.color} 10%,#111827);border-color:color-mix(in srgb,${s.color} 15%,transparent)"></div>
+        </div>
+      </div>
+      <div class="desk-chair" style="background:color-mix(in srgb,${s.color} 8%,#0d1117);border-color:color-mix(in srgb,${s.color} 12%,transparent)"></div>
+      <div class="desk-surface" style="background:color-mix(in srgb,${s.color} 10%,#0d1218);border-color:color-mix(in srgb,${s.color} 20%,transparent)">
+        <div class="${monitorCls}">${monitorInner}</div>
+        <div class="desk-leg-l" style="background:color-mix(in srgb,${s.color} 10%,#0d1117)"></div>
+        <div class="desk-leg-r" style="background:color-mix(in srgb,${s.color} 10%,#0d1117)"></div>
+      </div>
+      <div class="name-tag" style="color:color-mix(in srgb,${s.color} 80%,var(--text))">${s.name}</div>
+      <div class="role-tag">${s.role}</div>
+    </div>
+  `;
+}
+
+// ═══════════════════════════════════════════════
+//  하단 컨트롤 바
+// ═══════════════════════════════════════════════
+function renderCtrlBar() {
+  const bar = document.getElementById('ctrlBar');
+  let hint = '';
+  let btns = '';
+
+  if (wfState === 'idle') {
+    hint = '박준서에게 아이템 발굴을 지시하거나 직원에게 직접 업무를 지시하세요';
+    btns = `<button class="btn btn-yellow" onclick="startPlanning()">💡 아이템 발굴 시작</button>`;
+  } else if (wfState === 'planning') {
+    hint = '박준서가 아이템을 발굴 중입니다...';
+    btns = `<button class="btn btn-red" onclick="cancelWorkflow()">✕ 취소</button>`;
+  } else if (wfState === 'meeting') {
+    hint = '회의실을 클릭하거나 아래 버튼으로 회의를 진행하세요';
+    btns = `<button class="btn btn-accent" onclick="openMeetingModal()">🏛️ 회의실 입장</button><button class="btn btn-red" onclick="cancelWorkflow()">✕ 취소</button>`;
+  } else if (wfState === 'working') {
+    const done = Object.values(taskStatus).filter(v=>v==='done').length;
+    const total = Object.keys(taskStatus).length;
+    hint = `제작 진행중 — ${done}/${total} 완료`;
+    btns = `<button class="btn btn-accent" onclick="openProgressModal()">📊 진행 상황 보기</button>`;
+  } else if (wfState === 'reviewing') {
+    hint = '프로젝트 완성! 검토 후 승인 또는 보완 요청을 해주세요';
+    btns = `<button class="btn btn-green" onclick="openReviewModal()">📋 검토하기</button>`;
+  }
+
+  bar.innerHTML = `<div class="ctrl-hint">${hint}</div>${btns}`;
+}
+
+function renderAll() {
+  renderWFBar();
+  renderOffice();
+  renderCtrlBar();
+}
+
+// ═══════════════════════════════════════════════
+//  워크플로우 1단계: 아이템 발굴
+// ═══════════════════════════════════════════════
+async function startPlanning() {
+  wfState = 'planning';
+  taskStatus['planner'] = 'working';
+  renderAll();
+
+  const planner = getStaff('planner');
+  if (!planner) { alert('기획팀장을 찾을 수 없습니다'); cancelWorkflow(); return; }
+
+  try {
+    const text = await callClaude(
+      planner.prompt,
+      [{role:'user', content:'음악·비트·영상·콘텐츠·디지털상품 등 다양한 분야에서 수익 아이템 4개 발굴. JSON 배열만 응답: [{"name":"","platform":"","time":"","revenue":"","plan":"","dept":""}] dept는 주로 담당할 팀(제작팀/크리에이티브/기획팀 중 하나)'}],
+      'planner'
+    );
+    let ideas;
+    try { ideas = JSON.parse(text.replace(/```json|```/g,'').trim()); }
+    catch(e) { ideas = [{name:'AI 부업 완전정복 가이드',platform:'크몽',time:'3시간',revenue:'월 50~150만원',plan:'직장인 대상 AI 부업 실전 가이드북 PDF',dept:'제작팀'}]; }
+
+    currentIdeas = ideas;
+    taskStatus['planner'] = 'done';
+    wfState = 'meeting';
+    selectedIdea = null;
+    renderAll();
+    openIdeaSelectModal();
+  } catch(e) {
+    if (!e.message.startsWith('rate_limit:')) {
+      taskStatus['planner'] = 'idle';
+      wfState = 'idle';
+      renderAll();
+      showNotif('⚠️ 오류', e.message, [], true);
+    } else {
+      taskStatus['planner'] = 'resting';
+      renderAll();
+    }
+  }
+}
+
+function cancelWorkflow() {
+  wfState = 'idle'; currentProject = null; currentIdeas = []; selectedIdea = null;
+  Object.keys(taskStatus).forEach(k => { if(taskStatus[k]==='working') taskStatus[k]='idle'; });
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════
+//  아이디어 선택 모달
+// ═══════════════════════════════════════════════
+function openIdeaSelectModal() {
+  openModal('ideaModal', '💡 아이템 선택', `
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">박준서가 발굴한 아이템입니다. 하나를 선택하고 회의를 시작하세요.</p>
+    <div class="idea-grid" id="ideaGrid">
+      ${currentIdeas.map((idea,i) => `
+        <div class="idea-card" id="idea-${i}" onclick="selectIdea(${i})">
+          <div class="idea-name">${idea.name}</div>
+          <div class="idea-tags">
+            <span class="tag" style="background:#00e5ff15;color:#00e5ff">${idea.platform}</span>
+            <span class="tag" style="background:#4b556330;color:var(--muted)">⏱ ${idea.time}</span>
+            <span class="tag" style="background:#10b98115;color:#10b981">💰 ${idea.revenue}</span>
+          </div>
+          <div class="idea-plan">${idea.plan}</div>
+        </div>
+      `).join('')}
+    </div>
+  `, [
+    {label:'🏛️ 선택 후 회의 시작', cls:'btn-accent', action:'confirmIdeaAndMeet()', primary:true},
+    {label:'취소', cls:'btn-red', action:'closeModal();cancelWorkflow()'},
+  ]);
+}
+
+function selectIdea(i) {
+  selectedIdea = currentIdeas[i];
+  document.querySelectorAll('.idea-card').forEach(el => el.classList.remove('selected'));
+  const el = document.getElementById('idea-' + i);
+  if (el) el.classList.add('selected');
+}
+
+function confirmIdeaAndMeet() {
+  if (!selectedIdea) { alert('아이템을 선택해주세요'); return; }
+  currentProject = selectedIdea;
+  closeModal();
+  meetingHistory = [];
+  openMeetingModal();
+}
+
+// ═══════════════════════════════════════════════
+//  회의 모달
+// ═══════════════════════════════════════════════
+function openMeetingModal() {
+  if (!currentProject) return;
+
+  // 참석자: 기획팀장, CFO, 해당 dept 담당자
+  const attendees = STAFF.filter(s => ['planner','cfo'].includes(s.id) || s.dept === currentProject.dept);
+  const atHtml = attendees.map(s => `
+    <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:${s.color}12;border:1px solid ${s.color}30;border-radius:8px">
+      <span>${s.emoji}</span><span style="font-size:11px;font-weight:700;color:${s.color}">${s.name}</span>
+    </div>
+  `).join('');
+
+  openModal('meetingModal', '🏛️ 회의실', `
+    <div style="background:#0a1220;border:1px solid #1a2e50;border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="font-size:11px;color:var(--muted);margin-bottom:6px">안건</div>
+      <div style="font-weight:700;font-size:14px;margin-bottom:4px">${currentProject.name}</div>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        <span class="tag" style="background:#00e5ff15;color:#00e5ff">${currentProject.platform}</span>
+        <span class="tag" style="background:#10b98115;color:#10b981">💰 ${currentProject.revenue}</span>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">참석자</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">${atHtml}</div>
+    <div class="chat-box" id="meetChat" style="min-height:120px;max-height:260px;overflow-y:auto"></div>
+  `, [
+    {label:'⚙️ 업무 진행', cls:'btn-green', action:'confirmWork()', primary:true},
+    {label:'대화하기', cls:'btn-accent', action:'openMeetSendRow()'},
+    {label:'닫기', cls:'btn-red', action:'closeModal()'},
+  ]);
+
+  // 자동 브리핑
+  if (meetingHistory.length === 0) autoMeetingBrief(attendees);
+  else renderMeetChat();
+}
+
+async function autoMeetingBrief(attendees) {
+  const planner = getStaff('planner');
+  const cfo = getStaff('cfo');
+  if (!planner) return;
+
+  addMeetMsg(null, `📋 <strong>${currentProject.name}</strong> 안건으로 회의를 시작합니다.`, null);
+
+  try {
+    taskStatus['planner'] = 'working'; renderOffice();
+    const intro = await callClaude(
+      planner.prompt,
+      [{role:'user', content:`회의 안건: "${currentProject.name}" (플랫폼: ${currentProject.platform}, 예상수익: ${currentProject.revenue}). 대표님께 이 프로젝트 진행 이유와 핵심 전략을 3~4문장으로 브리핑해주세요.`}],
+      'planner'
+    );
+    addMeetMsg(planner, intro, null);
+    taskStatus['planner'] = 'done'; renderOffice();
+  } catch(e) { if(!e.message.startsWith('rate_limit:')) addMeetMsg(null, '박준서 브리핑 오류: ' + e.message, null); }
+
+  if (cfo) {
+    try {
+      taskStatus['cfo'] = 'working'; renderOffice();
+      const fin = await callClaude(
+        cfo.prompt,
+        [{role:'user', content:`"${currentProject.name}" 프로젝트. 예상 수익성과 주요 리스크를 2~3문장으로만.`}],
+        'cfo'
+      );
+      addMeetMsg(cfo, fin, null);
+      taskStatus['cfo'] = 'done'; renderOffice();
+    } catch(e) { if(!e.message.startsWith('rate_limit:')) addMeetMsg(null, 'CFO 분석 오류: ' + e.message, null); }
+  }
+}
+
+function addMeetMsg(staff, text, userText) {
+  if (userText !== null && userText !== undefined) {
+    meetingHistory.push({role:'user', text: userText || text});
+  } else if (staff) {
+    meetingHistory.push({role:'ai', staffId: staff.id, text});
+  } else {
+    meetingHistory.push({role:'system', text});
+  }
+  renderMeetChat();
+}
+
+function renderMeetChat() {
+  const box = document.getElementById('meetChat');
+  if (!box) return;
+  box.innerHTML = meetingHistory.map(m => {
+    if (m.role === 'system') return `<div style="text-align:center;font-size:11px;color:var(--muted);padding:4px 0">${m.text}</div>`;
+    if (m.role === 'user') return `<div class="msg user"><div class="msg-bubble">${m.text}</div></div>`;
+    const s = getStaff(m.staffId);
+    return `<div class="msg ai">
+      <div class="msg-av" style="background:${s?s.color+'20':'#111827'};border:1px solid ${s?s.color+'30':'#1a2332'}">${s?s.emoji:'💬'}</div>
+      <div class="msg-bubble"><div class="msg-name" style="color:${s?s.color:'var(--muted)'}">${s?s.name:'시스템'}</div>${m.text}</div>
+    </div>`;
+  }).join('') + (meetingLoading ? `<div class="msg ai"><div class="msg-av">⚙️</div><div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>` : '');
+  box.scrollTop = box.scrollHeight;
+}
+
+function openMeetSendRow() {
+  const footer = document.querySelector('.modal-footer');
+  if (!footer || document.getElementById('meetInputRow')) return;
+  const row = document.createElement('div');
+  row.id = 'meetInputRow';
+  row.style.cssText = 'width:100%;display:flex;gap:8px;padding-top:8px;border-top:1px solid var(--border)';
+  row.innerHTML = `<input id="meetInput" class="form-input" placeholder="회의 중 의견을 입력하세요..." style="flex:1" onkeydown="if(event.key==='Enter')sendMeetMsg()"/>
+    <button class="btn btn-accent" onclick="sendMeetMsg()">전송</button>`;
+  footer.before(row);
+  setTimeout(() => { const inp=document.getElementById('meetInput'); if(inp) inp.focus(); }, 50);
+}
+
+async function sendMeetMsg() {
+  const inp = document.getElementById('meetInput');
+  if (!inp || !inp.value.trim() || meetingLoading) return;
+  const msg = inp.value.trim();
+  inp.value = '';
+  addMeetMsg(null, msg, msg);
+  meetingLoading = true;
+  renderMeetChat();
+
+  const attendees = STAFF.filter(s => ['planner','cfo'].includes(s.id) || s.dept === currentProject.dept);
+  const responder = attendees[Math.floor(Math.random() * attendees.length)];
+  if (!responder) { meetingLoading=false; return; }
+
+  try {
+    taskStatus[responder.id] = 'working'; renderOffice();
+    // 회의 히스토리에서 API용 메시지 구성 (user 시작 필수)
+    const meetApiMsgs = meetingHistory
+      .filter(m => m.role==='user' || m.role==='ai')
+      .map(m => ({role: m.role==='user'?'user':'assistant', content:(m.text||'').replace(/<[^>]+>/g,'').trim()}))
+      .filter(m => m.content);
+    while (meetApiMsgs.length > 0 && meetApiMsgs[0].role==='assistant') meetApiMsgs.shift();
+    if (meetApiMsgs.length===0 || meetApiMsgs[meetApiMsgs.length-1].role!=='user') meetApiMsgs.push({role:'user',content:msg});
+    const reply = await callClaude(
+      responder.prompt + `\n현재 "${currentProject.name}" 프로젝트 회의 중. 대표 말에 2~3문장으로 자연스럽게 답변.`,
+      meetApiMsgs,
+      responder.id
+    );
+    addMeetMsg(responder, reply, null);
+    taskStatus[responder.id] = 'done'; renderOffice();
+  } catch(e) { if(!e.message.startsWith('rate_limit:')) addMeetMsg(null, '오류: ' + e.message, null); }
+  meetingLoading = false;
+  renderMeetChat();
+}
+
+// ═══════════════════════════════════════════════
+//  워크플로우 3단계: 제작 시작
+// ═══════════════════════════════════════════════
+function confirmWork() {
+  if (!currentProject) return;
+  closeModal();
+  wfState = 'working';
+  taskResults = {};
+
+  // 담당팀 직원들 + 편집장
+  const workers = STAFF.filter(s => s.dept === currentProject.dept || s.id === 'editor');
+  workers.forEach(s => { taskStatus[s.id] = 'idle'; });
+  renderAll();
+
+  // 병렬 제작 실행
+  runProductionPipeline(workers);
+}
+
+async function runProductionPipeline(workers) {
+  // Step 1: 리서처 먼저 (있으면)
+  const researcher = getStaff('researcher');
+  if (researcher && workers.find(w=>w.id==='researcher')) {
+    await runTask(researcher, `프로젝트: "${currentProject.name}" (${currentProject.platform}). 시장 조사 리포트를 작성해주세요. 경쟁 분석, 예상 수익, 차별화 포인트 포함.`);
+  }
+
+  // Step 2: 메인 제작 (병렬)
+  const mainWorkers = workers.filter(s => !['researcher','editor'].includes(s.id));
+  const researchCtx = taskResults['researcher'] ? `\n\n[리서치 결과]\n${taskResults['researcher'].slice(0,800)}` : '';
+
+  await Promise.all(mainWorkers.map(s => {
+    let task = '';
+    if (s.id==='docmaker')  task = `프로젝트: "${currentProject.name}" (${currentProject.platform} 판매용).
+크몽 상위 1% 판매자 수준의 디지털 상품 완성본을 작성하세요.
+
+[필수 품질 기준]
+- 분량: A4 기준 최소 25페이지 이상 (충분히 길고 깊게)
+- 구조: 표지문구 → 목차 → 서문(왜 필요한가) → 본문 챕터 5개 이상 → 부록(템플릿/체크리스트)
+- 각 챕터: 핵심개념 + 실전 예시 2개 이상 + 바로 쓰는 템플릿/체크리스트 + 흔한 실수
+- 모든 주장에 구체적 수치·사례 포함, 두루뭉술 표현 금지
+- 구매자가 "이 가격이 아깝지 않다, 당장 써먹겠다" 느낄 완성도
+- 마크다운(#, ##, ###, -, 표) 으로 깔끔하게 구조화
+절대 "~생략" "이하 동일" 같은 축약 금지. 전부 완성형으로.${researchCtx}`;
+    else if (s.id==='designer') task = `프로젝트: "${currentProject.name}". Canva 디자인 기획안을 작성하세요. 상품 표지·썸네일 색상코드·폰트·레이아웃 상세 지정.${researchCtx}`;
+    else if (s.id==='music') task = `프로젝트: "${currentProject.name}". Suno/Udio용 음악 제작 기획서와 프롬프트를 작성하세요. 장르·분위기·가사·AI 도구 활용법 포함.${researchCtx}`;
+    else if (s.id==='beatmaker') task = `프로젝트: "${currentProject.name}". 판매용 비트 기획서를 작성하세요. BPM·장르·구조·AI 프롬프트·BeatStars 판매 전략 포함.${researchCtx}`;
+    else if (s.id==='video') task = `프로젝트: "${currentProject.name}". 유튜브/숏폼 영상 기획서와 스크립트를 작성하세요. 제목·훅·본문·CTA 완성본 포함.${researchCtx}`;
+    else task = `프로젝트: "${currentProject.name}". 담당 업무를 수행해주세요.${researchCtx}`;
+    return runTask(s, task);
+  }));
+
+  // Step 3: 편집장 최종 취합 (납품물 형식 = 아이템 종류에 맞게)
+  const editor = getStaff('editor');
+  if (editor) {
+    const allCtx = Object.entries(taskResults).map(([id,r]) => {
+      const st = getStaff(id);
+      return `[${st?st.name:'담당자'} - ${st?st.role:''}]\n${r}`;
+    }).join('\n\n=====\n\n');
+
+    const kind = projectKind();
+    let finalInstruction;
+    if (kind === 'music' || kind === 'beat') {
+      finalInstruction = `프로젝트: "${currentProject.name}". 아래 팀 결과물을 취합하여 **실제로 음원을 뽑아낼 수 있는 최종 제작 패키지**를 만들어주세요.
+반드시 포함:
+1. 🎧 트랙 리스트 (각 트랙명 + 컨셉)
+2. 📋 각 트랙별 Suno/Udio 프롬프트 — 코드블록(\`\`\`)으로 감싸 그대로 복사 가능하게
+3. 🎤 가사 (있는 경우 전체)
+4. 🏷️ 판매 메타데이터 (제목/장르/BPM/태그/설명)
+5. 💰 ${currentProject.platform} 판매 등록 가이드
+※ 사장님이 이 프롬프트를 Suno/Udio에 붙여넣어 실제 비트를 생성합니다. 프롬프트는 절대 생략 없이 완성형으로.\n\n${allCtx}`;
+    } else if (kind === 'video') {
+      finalInstruction = `프로젝트: "${currentProject.name}". 아래 결과물을 취합하여 **바로 촬영/제작 가능한 영상 제작 패키지**를 만들어주세요.
+포함: 제목 후보, 썸네일 문구·디자인 지시, 전체 스크립트(컷별), AI 영상도구(Runway/Pika) 프롬프트(코드블록), 업로드 메타데이터·해시태그.\n\n${allCtx}`;
+    } else {
+      finalInstruction = `프로젝트: "${currentProject.name}" (${currentProject.platform} 판매용).
+아래 팀원 결과물을 취합하여 **그대로 판매 가능한 최종 완성본**을 만들어주세요.
+
+[취합 기준]
+- 리서치·콘텐츠·디자인 기획을 하나의 매끄러운 완성 문서로 통합
+- 중복 제거, 흐름 정리, 빠진 부분 직접 보완
+- 맨 앞에 [상품 소개글]: 제목 후보 3개 + 한 줄 후킹 + 판매 설명문(구매전환용) 추가
+- 본문은 마크다운으로 구조화 (#, ##, ###, 목록, 표)
+- 분량 충분히, 상위 1% 판매자 수준, 내용 축약·생략 절대 금지
+
+먼저 [상품 소개글] 섹션, 그 다음 [본문 완성본] 순서로.\n\n${allCtx}`;
+    }
+    await runTask(editor, finalInstruction);
+  }
+
+  // 완료
+  wfState = 'reviewing';
+  renderAll();
+  showProjectComplete();
+}
+
+async function runTask(staff, taskPrompt) {
+  const MAX_ATTEMPTS = 10;
+  // 업무 설명 저장 (라이브 패널용)
+  taskDesc[staff.id] = taskPrompt.slice(0, 120) + (taskPrompt.length > 120 ? '...' : '');
+  streamBuf[staff.id] = '';
+
+  for (let attempt = 1; attempt <= MAX_ATTEMPTS; attempt++) {
+    taskStatus[staff.id] = 'working';
+    streamBuf[staff.id] = '';
+    renderOffice();
+    try {
+      const result = await callClaudeStream(
+        staff.prompt,
+        [{role:'user', content: taskPrompt}],
+        staff.id,
+        (partial) => {
+          streamBuf[staff.id] = partial;
+          // 라이브 패널이 열려있으면 실시간 업데이트
+          updateLivePanel(staff.id, partial);
+        }
+      );
+      taskResults[staff.id] = result;
+      streamBuf[staff.id] = result;
+      taskStatus[staff.id] = 'done';
+      renderOffice();
+      updateLivePanel(staff.id, result, true);
+      return;
+    } catch(e) {
+      if (e.message && e.message.startsWith('rate_limit:')) {
+        const waitSecs = parseInt(e.message.split(':')[1], 10) || 60;
+        await sleep((waitSecs + 2) * 1000);
+      } else {
+        taskResults[staff.id] = '오류: ' + e.message;
+        taskStatus[staff.id] = 'error';
+        renderOffice();
+        return;
+      }
+    }
+  }
+  taskStatus[staff.id] = 'error';
+  taskResults[staff.id] = '최대 재시도 횟수 초과';
+  renderOffice();
+}
+
+// ═══════════════════════════════════════════════
+//  진행 상황 모달
+// ═══════════════════════════════════════════════
+function openProgressModal() {
+  const workers = STAFF.filter(s => taskStatus[s.id] && taskStatus[s.id] !== 'idle');
+  const rows = workers.map(s => {
+    const st = taskStatus[s.id] || 'idle';
+    const color = st==='done'?'var(--green)':st==='working'?'var(--accent)':st==='error'?'var(--red)':'var(--yellow)';
+    const pct = st==='done'?100:st==='working'?Math.floor(Math.random()*60+20):0;
+    const statusLabel = {working:'작업중...',done:'완료',error:'오류',resting:'휴식중',idle:'대기'}[st]||st;
+    return `<div class="task-row">
+      <div class="task-emp"><span class="task-emp-emoji">${s.emoji}</span><div><div class="task-emp-name">${s.name}</div><div style="font-size:9px;color:var(--muted)">${s.role}</div></div></div>
+      <div class="task-progress">
+        <div class="task-status-text" style="color:${color}">${statusLabel}${st==='resting'&&restTimers[s.id]?' ('+fmtTime(restTimers[s.id].rem)+')':''}</div>
+        <div class="progress-bar"><div class="progress-fill" style="width:${pct}%;background:${color}"></div></div>
+        ${st==='done'&&taskResults[s.id]?`<div class="task-done-text">✓ ${taskResults[s.id].length.toLocaleString()}자 생성</div>`:''}
+      </div>
+    </div>`;
+  }).join('');
+
+  openModal('progressModal', '⚙️ 제작 진행 상황', `<div class="task-tracker">${rows}</div>`, [
+    {label:'닫기', cls:'btn-accent', action:'closeModal()'},
+  ]);
+}
+
+// ═══════════════════════════════════════════════
+//  프로젝트 완료 알림
+// ═══════════════════════════════════════════════
+function showProjectComplete() {
+  showNotif(
+    '✅ 프로젝트 완성!',
+    `"${currentProject.name}" 제작이 완료되었습니다.\n결과물을 검토해주세요.`,
+    [{label:'📋 검토하기', action:'closeNotif();openReviewModal()'}]
+  );
+}
+
+// ═══════════════════════════════════════════════
+//  검토 모달
+// ═══════════════════════════════════════════════
+function openReviewModal() {
+  const editor = getStaff('editor');
+  const finalResult = taskResults['editor'] || taskResults[Object.keys(taskResults).pop()] || '';
+  const editorColor = editor ? editor.color : '#8b5cf6';
+
+  const kind = projectKind();
+  const isCreative = kind === 'music' || kind === 'beat' || kind === 'video';
+  const kindNote = {
+    beat:'🥁 비트 패키지 — 아래 프롬프트를 Suno/Udio에 붙여넣어 실제 비트를 생성하세요',
+    music:'🎵 음악 패키지 — 아래 프롬프트를 Suno/Udio에 붙여넣어 실제 음원을 생성하세요',
+    video:'🎬 영상 패키지 — 스크립트/프롬프트로 영상을 제작하세요',
+  }[kind];
+
+  const buttons = [
+    {label:'✅ 승인 — 완료 처리', cls:'btn-green', action:'approveProject()', primary:true},
+    {label:'🔧 보완 요청', cls:'btn-yellow', action:'requestRevision()'},
+  ];
+  if (isCreative) {
+    buttons.push({label:'📋 프롬프트 복사', cls:'btn-accent', action:'copyText(window._lastReviewText||"")'});
+    buttons.push({label:'💾 .txt 저장', cls:'btn-accent', action:'saveTxt(currentProject?currentProject.name:"package", window._lastReviewText||"")'});
+  } else {
+    buttons.push({label:'📄 PDF 다운로드', cls:'btn-accent', action:'downloadPDF()'});
+  }
+  buttons.push({label:'📤 어디에 올리나요?', cls:'btn-purple', action:'showUploadGuide()'});
+  buttons.push({label:'닫기', cls:'btn-red', action:'closeModal()'});
+  window._lastReviewText = finalResult;
+
+  openModal('reviewModal', '📋 최종 결과물 검토', `
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:12px">
+      <span style="font-size:20px">${editor?editor.emoji:'🎯'}</span>
+      <div>
+        <div style="font-weight:700;font-size:14px;color:${editorColor}">${editor?editor.name:'편집장'}</div>
+        <div style="font-size:11px;color:var(--muted)">최종 ${isCreative?'제작 패키지':'완성본'}</div>
+      </div>
+    </div>
+    ${kindNote?`<div style="background:#10b98110;border:1px solid #10b98133;border-radius:8px;padding:9px 12px;margin-bottom:12px;font-size:11px;color:var(--green);line-height:1.6">${kindNote}</div>`:''}
+    ${(kind==='beat'||kind==='music') ? `
+      <div style="background:#f59e0b08;border:1px solid #f59e0b33;border-radius:10px;padding:11px;margin-bottom:12px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap">
+          <div style="font-size:12px;font-weight:700;color:#f59e0b">🎵 Suno에 넣을 프롬프트 만들기</div>
+          <button class="btn btn-yellow" style="padding:5px 12px;font-size:11px" onclick="extractSunoPrompt()">✨ 프롬프트 추출</button>
+        </div>
+        <div id="sunoPromptBox" style="font-size:11px;color:var(--muted);margin-top:8px">버튼을 누르면 Claude가 패키지에서 <b>Styles</b>(스타일)와 <b>Lyrics</b>(가사)를 깔끔하게 뽑아드려요. 그대로 복사해서 Suno에 붙여넣으세요.</div>
+      </div>` : ''}
+    <div style="background:#a78bfa08;border:1px solid #a78bfa33;border-radius:10px;padding:11px;margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="font-size:12px;font-weight:700;color:#a78bfa">🎨 한채원 — 표지/썸네일 디자인</div>
+        <button class="btn btn-purple" style="padding:5px 12px;font-size:11px" onclick="generateCoverDesign()">▶️ 디자인 생성</button>
+      </div>
+      <div id="designStatus" style="font-size:11px;color:var(--muted);margin-top:8px">버튼을 누르면 한채원이 실제 표지 이미지를 그려줍니다 (PNG/SVG 저장 가능).</div>
+    </div>
+    <div class="review-result">${finalResult || '결과물 없음'}</div>
+    <div style="margin-bottom:12px">
+      <label class="form-label">보완 요청 내용 (승인 시 비워두세요)</label>
+      <textarea id="revisionNote" class="form-textarea" placeholder="예: 3번 트랙 프롬프트에 베이스라인을 더 강조해주세요."></textarea>
+    </div>
+  `, buttons);
+}
+
+// ═══════════════════════════════════════════════
+//  업로드 가이드 (초보용 단계별 안내)
+// ═══════════════════════════════════════════════
+function showUploadGuide(proj) {
+  const p = proj || currentProject;
+  const guide = getGuideFor(p);
+
+  const stepHtml = guide.steps.map((s,i) => `
+    <div style="display:flex;gap:10px;margin-bottom:14px">
+      <div style="width:24px;height:24px;border-radius:50%;background:${guide.color}22;border:1.5px solid ${guide.color};color:${guide.color};display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:800;flex-shrink:0">${i+1}</div>
+      <div style="flex:1;font-size:13px;line-height:1.7;color:var(--text)">${s}</div>
+    </div>
+  `).join('');
+
+  openModal('uploadGuide', `📤 ${guide.title}에 올리는 법`, `
+    <div style="background:${guide.color}10;border:1px solid ${guide.color}33;border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px;color:${guide.color};line-height:1.6">
+      ${guide.intro}
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:8px 12px;margin-bottom:16px;font-size:11px;color:var(--muted)">
+      🔗 사이트: <a href="${guide.url}" target="_blank" style="color:var(--accent)">${guide.url}</a> (클릭하면 새 탭으로 열려요)
+    </div>
+    ${stepHtml}
+    <div style="background:#10b98110;border:1px solid #10b98133;border-radius:10px;padding:11px;margin-top:8px;font-size:11px;color:var(--green);line-height:1.7">
+      💡 <b>꿀팁:</b> ${guide.tip}
+    </div>
+  `, [
+    {label:'닫기', cls:'btn-accent', action:'closeModal()'},
+  ]);
+}
+
+function guideKmong() {
+  return {
+    title:'크몽', color:'#ff6b35', url:'https://kmong.com',
+    intro:'크몽은 국내 1위 재능·디지털 상품 마켓이에요. PDF 전자책·템플릿 판매에 최적이에요.',
+    steps:[
+      '크몽 회원가입 후 로그인 → 우측 상단 <b>"전문가 등록"</b> 클릭 (전문가로 전환해야 판매 가능)',
+      '<b>"서비스 등록하기"</b> → 카테고리에서 <b>"전자책·템플릿"</b> 또는 가장 비슷한 분야 선택',
+      '제목 칸에 → 앱에서 만든 <b>[상품 소개글]의 제목</b>을 붙여넣기',
+      '상세 설명 칸에 → <b>[상품 소개글]의 판매 설명문</b>을 붙여넣기 (구매를 유도하는 글)',
+      '대표 이미지 → 한채원이 만든 <b>표지 PNG</b>를 업로드',
+      '가격 설정 (전자책은 보통 9,900~39,000원) → 등록 완료',
+      '구매자가 결제하면 → 앱에서 받은 <b>PDF 파일</b>을 메시지로 전달하거나 자동발송 설정',
+    ],
+    tip:'처음엔 가격을 살짝 낮게(예: 15,000원) 잡고 후기를 쌓은 뒤 올리는 게 잘 팔려요.'
+  };
+}
+function guideGumroad() {
+  return {
+    title:'Gumroad', color:'#ff90e8', url:'https://gumroad.com',
+    intro:'Gumroad는 해외 디지털 상품 판매 플랫폼이에요. 영어 상품·전세계 판매에 좋아요.',
+    steps:[
+      'Gumroad 가입 후 → <b>"Start selling"</b> → <b>"New product"</b> 클릭',
+      'Type은 <b>"Digital product"</b> 선택',
+      'Name(이름)에 → 상품 제목 붙여넣기, 가격(USD) 설정 (예: $9)',
+      'Description에 → 판매 설명문 붙여넣기',
+      'Cover에 → 표지 PNG 업로드',
+      'Content 탭에서 → 판매할 <b>PDF 파일</b>을 업로드 (구매자가 자동으로 받음)',
+      '<b>"Publish"</b> 클릭 → 생성된 링크를 SNS·블로그에 공유',
+    ],
+    tip:'Gumroad는 결제·파일전달이 전자동이라 한 번 올려두면 자고 있어도 팔려요.'
+  };
+}
+function guideEtsy() {
+  return {
+    title:'Etsy', color:'#f56400', url:'https://www.etsy.com/sell',
+    intro:'Etsy는 디자인·템플릿·디지털 다운로드 상품이 잘 팔리는 해외 마켓이에요.',
+    steps:[
+      'Etsy 판매자 가입 → <b>"Open your shop"</b> → 상점 이름 설정',
+      '<b>"Add a listing"</b> 클릭 → 상품 종류는 <b>"Digital"</b> 선택',
+      '사진란에 → 표지 PNG 업로드 (여러 장 권장)',
+      'Title·Description에 → 제목·설명문 붙여넣기 (영문 권장)',
+      'Digital files 항목에 → PDF 파일 업로드',
+      '가격 설정 후 → <b>"Publish"</b>',
+    ],
+    tip:'Etsy는 검색 태그(13개)가 중요해요. 설명문에 나온 키워드를 태그에 꼭 넣으세요.'
+  };
+}
+function guideBeatStars() {
+  return {
+    title:'BeatStars', color:'#ef4444', url:'https://www.beatstars.com',
+    intro:'BeatStars는 세계 최대 비트 판매 플랫폼이에요. Suno로 만든 음원을 여기 올려요.',
+    steps:[
+      '먼저 → 앱에서 추출한 <b>Title/Styles/Lyrics</b>를 Suno에 붙여넣어 <b>실제 비트(.mp3)를 생성·다운로드</b>',
+      'BeatStars 가입 → <b>"Upload"</b> 클릭',
+      '다운받은 <b>비트 음원 파일</b> 업로드',
+      '제목·장르·BPM·태그 입력 (앱의 메타데이터 그대로 사용)',
+      '커버 이미지에 → 한채원이 만든 표지 PNG 업로드',
+      '라이선스·가격 설정 (기본 리스 $20~35 추천) → 게시',
+    ],
+    tip:'태그(트랩, 드릴, type beat 등)를 정확히 달아야 검색에 노출돼요. 유명 아티스트 "type beat" 태그가 핵심.'
+  };
+}
+function guideYouTube() {
+  return {
+    title:'유튜브', color:'#ff0000', url:'https://studio.youtube.com',
+    intro:'영상은 유튜브에 올려 광고수익·조회수를 만들어요.',
+    steps:[
+      '앱의 스크립트·AI영상 프롬프트로 → 영상을 제작 (Runway/Pika 등 또는 직접 촬영)',
+      'YouTube Studio 접속 → 우측 상단 <b>"만들기 → 동영상 업로드"</b>',
+      '완성된 영상 파일 업로드',
+      '제목·설명에 → 앱이 만든 제목·메타데이터 붙여넣기',
+      '썸네일에 → 한채원이 만든 썸네일 PNG 업로드',
+      '태그·해시태그 입력 후 → 공개 게시',
+    ],
+    tip:'썸네일과 첫 3초(훅)가 조회수의 90%를 결정해요. 거기에 가장 공들이세요.'
+  };
+}
+function guideBlog() {
+  return {
+    title:'블로그', color:'#03c75a', url:'https://blog.naver.com',
+    intro:'블로그 글로 방문자를 모으고, 글 안에서 상품으로 연결해요.',
+    steps:[
+      '네이버 블로그 또는 티스토리 접속 → <b>"글쓰기"</b>',
+      '제목에 → 앱이 만든 SEO 제목 붙여넣기',
+      '본문에 → 작성된 포스팅 내용 붙여넣기',
+      '중간중간 → 한채원이 만든 이미지(PNG) 삽입',
+      '글 끝에 → 판매 상품(크몽/Gumroad) 링크 자연스럽게 추가',
+      '태그 입력 후 → 발행',
+    ],
+    tip:'제목에 사람들이 실제로 검색하는 키워드를 꼭 넣어야 검색에 노출돼요.'
+  };
+}
+
+function approveProject() {
+  const result = {
+    project: currentProject,
+    results: {...taskResults},
+    timestamp: new Date().toLocaleString('ko-KR'),
+    status: 'approved',
+    live: false,         // 업로드(판매개시) 여부
+    revenue: []          // [{date:'YYYY-MM-DD', amount:number}]
+  };
+  result.kind = projectKind();
+  completedProjects.unshift(result);
+  saveDone();
+  // 종류별 자동 저장: 문서형은 PDF, 크리에이티브는 .txt 패키지
+  if (result.kind === 'doc') {
+    downloadPDF(true);
+  } else {
+    const txt = taskResults['editor'] || Object.values(taskResults).pop() || '';
+    if (txt) saveTxt((currentProject?currentProject.name:'package') + '_제작패키지', txt);
+  }
+  closeModal();
+
+  // 초기화
+  wfState = 'idle';
+  currentProject = null;
+  currentIdeas = [];
+  taskResults = {};
+  Object.keys(taskStatus).forEach(k => taskStatus[k]='idle');
+  renderAll();
+
+  // 방금 승인한 프로젝트(맨 앞)의 업로드 체크리스트 열기
+  openUploadChecklist(0);
+}
+
+// 프로젝트에 맞는 가이드 객체 반환 (공용)
+function getGuideFor(p) {
+  const platform = (p?.platform || '').toLowerCase();
+  const kind = guessKind(p);
+  if (/gumroad/.test(platform)) return guideGumroad();
+  if (/etsy/.test(platform)) return guideEtsy();
+  if (/beatstars|airbit/.test(platform) || kind==='beat') return guideBeatStars();
+  if (/유튜브|youtube/.test(platform) || kind==='video') return guideYouTube();
+  if (/블로그|네이버|티스토리|blog/.test(platform)) return guideBlog();
+  return guideKmong();
+}
+
+// ═══════════════════════════════════════════════
+//  업로드 체크리스트 (승인 후)
+// ═══════════════════════════════════════════════
+let checklistState = {}; // stepIndex -> bool
+
+function openUploadChecklist(idx) {
+  const proj = completedProjects[idx];
+  if (!proj) return;
+  const guide = getGuideFor(proj.project);
+  checklistState = {};
+
+  const itemsHtml = guide.steps.map((s,i) => `
+    <label style="display:flex;gap:10px;align-items:flex-start;padding:10px;background:var(--card);border:1px solid var(--border);border-radius:9px;margin-bottom:8px;cursor:pointer">
+      <input type="checkbox" onchange="toggleCheck(${i}, this.checked, ${guide.steps.length}, ${idx})" style="width:18px;height:18px;margin-top:1px;flex-shrink:0;accent-color:${guide.color}"/>
+      <span style="font-size:13px;line-height:1.6;color:var(--text)">${s}</span>
+    </label>
+  `).join('');
+
+  openModal('checklistModal', `📤 ${guide.title} 업로드 체크리스트`, `
+    <div style="background:${guide.color}10;border:1px solid ${guide.color}33;border-radius:10px;padding:12px;margin-bottom:14px;font-size:12px;color:${guide.color};line-height:1.6">
+      🎉 <b>${proj.project.name}</b> 제작 완료!<br>아래 항목을 하나씩 따라하며 체크하세요. 다 체크하면 [업로드 완료]가 활성화돼요.
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 12px;margin-bottom:14px;font-size:11px;color:var(--muted)">
+      🔗 <a href="${guide.url}" target="_blank" style="color:var(--accent)">${guide.url}</a> (클릭하면 새 탭으로 열려요)
+    </div>
+    ${itemsHtml}
+    <div style="background:#10b98110;border:1px solid #10b98133;border-radius:9px;padding:10px;font-size:11px;color:var(--green);line-height:1.6;margin-top:4px">
+      💡 ${guide.tip}
+    </div>
+    <div id="checkProgress" style="text-align:center;font-size:12px;color:var(--muted);margin-top:12px">0 / ${guide.steps.length} 완료</div>
+  `, [
+    {label:'✅ 업로드 완료 — 판매 시작', cls:'btn-green', action:`finishUpload(${idx})`, primary:true},
+    {label:'나중에', cls:'btn-red', action:'closeModal()'},
+  ]);
+  updateCheckUI(guide.steps.length);
+}
+
+function toggleCheck(i, checked, total, idx) {
+  checklistState[i] = checked;
+  updateCheckUI(total);
+}
+
+function updateCheckUI(total) {
+  const done = Object.values(checklistState).filter(Boolean).length;
+  const prog = document.getElementById('checkProgress');
+  if (prog) prog.textContent = `${done} / ${total} 완료`;
+  // 완료 버튼은 다 체크해야 활성화
+  const footer = document.querySelector('#checklistModal .modal-footer');
+  if (footer) {
+    const doneBtn = footer.querySelector('button');
+    if (doneBtn) {
+      const allDone = done >= total;
+      doneBtn.disabled = !allDone;
+      doneBtn.style.opacity = allDone ? '1' : '0.4';
+    }
+  }
+}
+
+function finishUpload(idx) {
+  const proj = completedProjects[idx];
+  if (!proj) return;
+  proj.live = true;
+  proj.liveSince = new Date().toLocaleDateString('ko-KR');
+  saveDone();
+  closeModal();
+  showNotif('🚀 판매 시작!', `"${proj.project.name}"이(가) 판매 등록되었습니다.\n이제 매일 수익을 입력해 매출을 관리하세요.`, [
+    {label:'💰 매출 입력하러 가기', action:'closeNotif();openRevenue()'}
+  ]);
+}
+
+function requestRevision() {
+  const note = document.getElementById('revisionNote').value.trim();
+  if (!note) { alert('보완 요청 내용을 입력해주세요'); return; }
+  closeModal();
+  wfState = 'working';
+
+  const editor = getStaff('editor');
+  if (editor) {
+    taskStatus[editor.id] = 'idle';
+    renderAll();
+    const prevResult = taskResults[editor.id] || '';
+    runTask(editor, `[보완 요청]\n${note}\n\n[기존 결과물]\n${prevResult}\n\n위 보완 요청 사항을 반영하여 수정된 최종본을 작성해주세요.`)
+      .then(() => { wfState='reviewing'; renderAll(); showProjectComplete(); });
+  }
+}
+
+function downloadPDF(silent) {
+  const editor = getStaff('editor');
+  const finalResult = taskResults['editor'] || taskResults[Object.keys(taskResults).pop()] || '';
+  if (!finalResult) { if(!silent) alert('결과물이 없습니다'); return; }
+
+  const lines = finalResult.split('\n').map(l => {
+    if(l.startsWith('# ')) return `<h1>${l.slice(2)}</h1>`;
+    if(l.startsWith('## ')) return `<h2>${l.slice(3)}</h2>`;
+    if(l.startsWith('### ')) return `<h3>${l.slice(4)}</h3>`;
+    if(l.startsWith('- ')) return `<li>${l.slice(2)}</li>`;
+    if(l.match(/^\d+\. /)) return `<li>${l.replace(/^\d+\. /,'')}</li>`;
+    if(l.startsWith('> ')) return `<blockquote>${l.slice(2)}</blockquote>`;
+    if(l==='---') return '<hr/>';
+    return l ? `<p>${l}</p>` : '<br/>';
+  }).join('');
+
+  const dateStr = new Date().toLocaleString('ko-KR');
+  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${currentProject?currentProject.name:'NEXIVA 결과물'}</title>
+<style>
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
+*{box-sizing:border-box}body{font-family:'Noto Sans KR',sans-serif;max-width:800px;margin:0 auto;padding:48px 56px;color:#1a1a2e;line-height:2;font-size:15px}
+header{border-bottom:3px solid #00e5ff;padding-bottom:20px;margin-bottom:40px}
+.badge{background:#0a1628;color:#00e5ff;font-size:11px;padding:4px 12px;border-radius:20px;letter-spacing:2px;font-weight:700;display:inline-block;margin-bottom:12px}
+h1{font-size:26px;font-weight:800;margin:16px 0 10px}h2{font-size:19px;margin:32px 0 10px;padding:10px 16px;border-left:4px solid #00e5ff;background:#f8faff;font-weight:700}
+h3{font-size:16px;margin:20px 0 8px;font-weight:700}p{margin:10px 0;color:#334155}li{margin:6px 0 6px 24px;color:#334155}
+blockquote{background:#f8faff;border-left:4px solid #00e5ff;padding:12px 20px;margin:16px 0;color:#1e40af;border-radius:0 8px 8px 0}
+hr{border:none;border-top:1px solid #e2e8f0;margin:28px 0}
+footer{margin-top:50px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between}
+.no-print{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:12px;color:#0369a1}
+@media print{.no-print{display:none}body{padding:20px 30px}}
+</style></head><body>
+<div class="no-print">💡 Cmd+P → PDF 저장 | 생성: ${dateStr}</div>
+<header><div class="badge">NEXIVA · ${editor?editor.name:'편집장'}</div>
+<h1>${currentProject?currentProject.name:'NEXIVA 결과물'}</h1>
+<p style="color:#64748b;font-size:13px;margin:0">${dateStr} | NEXIVA AI Company</p></header>
+<main>${lines}</main>
+<footer><span>⚡ NEXIVA AI Company</span><span>Powered by Claude Sonnet</span></footer>
+<script>setTimeout(()=>window.print(),600);<\/script>
+</body></html>`;
+
+  const url = URL.createObjectURL(new Blob([html], {type:'text/html'}));
+  window.open(url, '_blank');
+}
+
+// ═══════════════════════════════════════════════
+//  직원 개인 채팅
+// ═══════════════════════════════════════════════
+let staffChatHistory = {};
+let staffChatLoading = {};
+
+// ── 라이브 패널 업데이트 (스트리밍 중 실시간 반영)
+function updateLivePanel(staffId, text, done) {
+  const out = document.getElementById('live-out-' + staffId);
+  if (!out) return;
+  // 줄바꿈 포함 텍스트를 그대로 표시
+  out.textContent = text;
+  out.scrollTop = out.scrollHeight;
+  const badge = document.getElementById('live-badge-' + staffId);
+  if (badge) badge.textContent = done ? `✅ ${(text.length/1000).toFixed(1)}k자 완성` : `⚡ ${(text.length/1000).toFixed(1)}k자 생성 중...`;
+}
+
+// ── 직원 클릭: 작업중이면 라이브 뷰, 아니면 채팅
+function openStaffChat(staffId) {
+  const s = getStaff(staffId);
+  if (!s) return;
+  const st = taskStatus[staffId] || 'idle';
+
+  // 작업 중이거나 완료된 직원 → 라이브 업무 현황 패널
+  if (st === 'working' || st === 'done') {
+    openLivePanel(staffId);
+    return;
+  }
+
+  // 일반 채팅
+  if (!staffChatHistory[staffId]) {
+    staffChatHistory[staffId] = [{role:'ai', text:`안녕하세요 대표님! ${s.name}입니다. 무엇을 도와드릴까요?`}];
+  }
+
+  openModal('staffChat_'+staffId, `${s.emoji} ${s.name} — ${s.role}`, `
+    <div id="sChatBox" style="min-height:150px;max-height:300px;overflow-y:auto;display:flex;flex-direction:column;gap:10px;margin-bottom:12px"></div>
+    <div class="chat-input-row">
+      <textarea id="sChatInput" placeholder="${s.name}에게 업무를 지시하세요..." onkeydown="if(event.key==='Enter'&&!event.shiftKey){event.preventDefault();sendStaffChat('${staffId}')}"></textarea>
+      <button class="btn btn-accent" onclick="sendStaffChat('${staffId}')">전송</button>
+    </div>
+  `, [
+    {label:'🗑️ 대화 초기화', cls:'btn-red', action:`clearStaffChat('${staffId}')`},
+    {label:'닫기', cls:'btn-accent', action:'closeModal()'}
+  ]);
+
+  refreshStaffChatUI(staffId, s, false);
+  setTimeout(() => { document.getElementById('sChatInput')?.focus(); }, 50);
+}
+
+// ── 라이브 업무 현황 패널
+function openLivePanel(staffId) {
+  const s = getStaff(staffId);
+  if (!s) return;
+  const st = taskStatus[staffId] || 'idle';
+  const isDone = st === 'done';
+  const desc = taskDesc[staffId] || '(업무 내용 없음)';
+  const partial = streamBuf[staffId] || taskResults[staffId] || '';
+  const charCount = partial.length;
+
+  openModal('livePanel', `${s.emoji} ${s.name} — 업무 현황`, `
+    <div style="background:${s.color}10;border:1px solid ${s.color}30;border-radius:10px;padding:12px;margin-bottom:14px">
+      <div style="font-size:10px;color:${s.color};font-weight:700;letter-spacing:1px;margin-bottom:5px">현재 업무 지시</div>
+      <div style="font-size:12px;color:var(--text);line-height:1.6">${desc}</div>
+    </div>
+    <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+      <div style="font-size:11px;color:var(--muted)">생성 중인 결과물</div>
+      <div id="live-badge-${staffId}" style="font-size:11px;font-weight:700;color:${isDone?'var(--green)':'var(--accent)'}">
+        ${isDone ? `✅ ${(charCount/1000).toFixed(1)}k자 완성` : `⚡ ${(charCount/1000).toFixed(1)}k자 생성 중...`}
+      </div>
+    </div>
+    <div id="live-out-${staffId}"
+      style="background:var(--bg);border:1px solid var(--border);border-radius:10px;
+             padding:14px;height:340px;overflow-y:auto;
+             font-size:12px;line-height:1.8;color:var(--text);
+             white-space:pre-wrap;word-break:break-word;
+             font-family:'Noto Sans KR',monospace">
+${partial}
+    </div>
+    ${isDone ? `
+    <div style="display:flex;gap:8px;margin-top:12px">
+      <button class="btn btn-accent" style="flex:1" onclick="closeModal();openStaffChat('${staffId}')">💬 대화하기</button>
+      <button class="btn btn-green" style="flex:1" onclick="pdfFromLive('${staffId}')">📄 PDF 저장</button>
+    </div>` : ''}
+  `, [
+    {label:'닫기', cls:'btn-red', action:'closeModal()'}
+  ]);
+
+  // 스크롤 맨 아래로
+  setTimeout(() => {
+    const el = document.getElementById('live-out-' + staffId);
+    if (el) el.scrollTop = el.scrollHeight;
+  }, 50);
+}
+
+function pdfFromLive(staffId) {
+  const s = getStaff(staffId);
+  const text = taskResults[staffId] || streamBuf[staffId] || '';
+  if (!text) { alert('결과물이 없습니다'); return; }
+  const prevProject = currentProject;
+  currentProject = {name: s ? s.role + ' 결과물' : '결과물'};
+  const prevResults = taskResults;
+  taskResults = {editor: text};
+  downloadPDF(false);
+  currentProject = prevProject;
+  taskResults = prevResults;
+}
+
+function clearStaffChat(staffId) {
+  const s = getStaff(staffId);
+  staffChatHistory[staffId] = [{role:'ai', text:`대화를 초기화했습니다. ${s?s.name:''}에게 새로운 업무를 지시하세요.`}];
+  refreshStaffChatUI(staffId, s, false);
+}
+
+async function sendStaffChat(staffId) {
+  const s = getStaff(staffId);
+  const inp = document.getElementById('sChatInput');
+  if (!inp || !inp.value.trim() || staffChatLoading[staffId]) return;
+  const msg = inp.value.trim();
+  inp.value = '';
+
+  staffChatHistory[staffId].push({role:'user', text: msg});
+  staffChatLoading[staffId] = true;
+  refreshStaffChatUI(staffId, s, true);
+
+  taskStatus[staffId] = 'working'; renderOffice();
+
+  const buildMessages = () => {
+    const allMsgs = staffChatHistory[staffId]
+      .filter(m => m.role === 'user' || m.role === 'ai')
+      .map(m => ({role: m.role==='user'?'user':'assistant', content: (m.text||'').trim()}))
+      .filter(m => m.content);
+    const firstUser = allMsgs.findIndex(m => m.role === 'user');
+    return firstUser >= 0 ? allMsgs.slice(firstUser) : [{role:'user', content: msg}];
+  };
+
+  // 스트리밍용 임시 메시지 슬롯
+  staffChatHistory[staffId].push({role:'ai', text: '', streaming: true});
+  refreshStaffChatUI(staffId, s, true);
+
+  const MAX_CHAT_RETRIES = 5;
+  let chatDone = false;
+  for (let attempt = 1; attempt <= MAX_CHAT_RETRIES && !chatDone; attempt++) {
+    try {
+      taskStatus[staffId] = 'working'; renderOffice();
+      // 스트리밍: 글자 올 때마다 마지막 슬롯 업데이트
+      const result = await callClaudeStream(s.prompt, buildMessages(), staffId, (partial) => {
+        const hist = staffChatHistory[staffId];
+        if (hist.length && hist[hist.length-1].streaming) {
+          hist[hist.length-1].text = partial;
+          refreshStaffChatUI(staffId, s, false);
+        }
+      });
+      // 완료: 스트리밍 플래그 제거
+      const hist = staffChatHistory[staffId];
+      if (hist.length && hist[hist.length-1].streaming) {
+        hist[hist.length-1].text = result;
+        hist[hist.length-1].streaming = false;
+      }
+      taskStatus[staffId] = 'done';
+      chatDone = true;
+    } catch(e) {
+      if (e.message && e.message.startsWith('rate_limit:')) {
+        const waitSecs = parseInt(e.message.split(':')[1], 10) || 60;
+        const hist = staffChatHistory[staffId];
+        if (hist.length && hist[hist.length-1].streaming) {
+          hist[hist.length-1].text = `😴 토큰 재생성 중... ${waitSecs}초 후 자동 재시도`;
+        }
+        refreshStaffChatUI(staffId, s, false);
+        await sleep((waitSecs + 2) * 1000);
+        // 재시도 전 메시지 리셋
+        const h2 = staffChatHistory[staffId];
+        if (h2.length && h2[h2.length-1].streaming) h2[h2.length-1].text = '';
+      } else {
+        const hist = staffChatHistory[staffId];
+        if (hist.length && hist[hist.length-1].streaming) {
+          hist[hist.length-1].text = '오류: ' + e.message;
+          hist[hist.length-1].streaming = false;
+        }
+        taskStatus[staffId] = 'idle';
+        chatDone = true;
+      }
+    }
+  }
+  staffChatLoading[staffId] = false;
+  renderOffice();
+  refreshStaffChatUI(staffId, s, false);
+}
+
+function refreshStaffChatUI(staffId, s, loading) {
+  const box = document.getElementById('sChatBox');
+  if (!box) return;
+  box.innerHTML = staffChatHistory[staffId].map(m => {
+    if(m.role==='ai') return `<div class="msg ai"><div class="msg-av" style="background:${s.color}20;border:1px solid ${s.color}30">${s.emoji}</div><div class="msg-bubble"><div class="msg-name" style="color:${s.color}">${s.name}</div>${m.text}${m.text.length>200?`<div style="margin-top:6px"><button class="btn btn-accent" style="padding:4px 10px;font-size:11px" onclick="openPDFFromText('${staffId}')">📄 PDF</button></div>`:''}</div></div>`;
+    return `<div class="msg user"><div class="msg-bubble">${m.text}</div></div>`;
+  }).join('') + (loading ? `<div class="msg ai"><div class="msg-av" style="background:${s.color}20">${s.emoji}</div><div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>` : '');
+  box.scrollTop = box.scrollHeight;
+}
+
+function openPDFFromText(staffId) {
+  const s = getStaff(staffId);
+  const last = staffChatHistory[staffId]?.slice().reverse().find(m=>m.role==='ai'&&m.text.length>100);
+  if (!last || !s) return;
+  const savedProject = currentProject;
+  const savedId = staffId;
+  // temp swap
+  const tmp = currentProject;
+  currentProject = {name: s.role + ' 결과물'};
+  taskResults = {editor: last.text};
+  downloadPDF(false);
+  currentProject = tmp;
+  taskResults = {};
+}
+
+// ═══════════════════════════════════════════════
+//  완료 목록
+// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+//  백업 / 복원 (기기 간 데이터 이동)
+// ═══════════════════════════════════════════════
+function openSettings() {
+  const c = cloudCfg;
+  openModal('settingsModal', '⚙️ 설정', `
+    <div style="background:#00e5ff08;border:1px solid #00e5ff44;border-radius:12px;padding:14px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+        <div style="font-size:14px;font-weight:800;color:var(--accent)">🌐 실시간 동기화</div>
+        <div id="cloudBadge" style="font-size:11px;font-weight:700"></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:12px">
+        Firebase 무료 클라우드로 <b>모든 기기가 실시간 공유</b>돼요. Mac에서 매출 입력 → 폰에 즉시 반영!
+      </div>
+      <label class="form-label">Firebase DB URL</label>
+      <input id="cloud-url" class="form-input" placeholder="https://내프로젝트.firebaseio.com" value="${c.dbUrl||''}" style="margin-bottom:8px"/>
+      <label class="form-label">회사 동기화 코드 (모든 기기 동일하게)</label>
+      <div style="display:flex;gap:7px;margin-bottom:10px">
+        <input id="cloud-code" class="form-input" placeholder="예: nexiva-7x9k2" value="${c.code||''}" style="flex:1"/>
+        <button class="btn btn-accent" style="padding:8px 12px;font-size:11px" onclick="genCloudCode()">🎲 생성</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:8px;margin-bottom:10px">
+        <input type="checkbox" id="cloud-enabled" ${c.enabled?'checked':''} style="width:17px;height:17px;accent-color:var(--accent)"/>
+        <label for="cloud-enabled" style="font-size:12px">실시간 동기화 켜기</label>
+      </div>
+      <button class="btn btn-green" style="width:100%" onclick="saveCloudSync()">💾 동기화 저장 & 연결</button>
+      <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6">
+        ⚠️ 같은 URL+코드를 쓰는 모든 기기가 데이터를 공유합니다. 코드는 비밀번호처럼 관리하세요.
+      </div>
+    </div>
+
+    <div style="background:#f59e0b10;border:1px solid #f59e0b33;border-radius:10px;padding:12px;margin-bottom:16px;font-size:12px;color:#f59e0b;line-height:1.7">
+      💾 동기화를 안 쓰면 데이터는 <b>이 기기에만</b> 저장돼요. 백업으로 옮길 수 있어요.
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:11px;padding:14px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">💾 백업하기 (내보내기)</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:10px">직원·프로젝트·매출 데이터를 파일 하나로 저장해요. (API 키는 보안상 제외)</div>
+      <button class="btn btn-green" style="width:100%" onclick="exportData()">⬇️ 백업 파일 다운로드</button>
+    </div>
+
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:11px;padding:14px;margin-bottom:12px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px">📂 복원하기 (불러오기)</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:10px">백업 파일을 불러오면 현재 데이터를 덮어써요. 폰에서 이걸로 Mac 데이터를 가져올 수 있어요.</div>
+      <input type="file" id="importFile" accept=".json" style="display:none" onchange="importData(this)"/>
+      <button class="btn btn-yellow" style="width:100%" onclick="document.getElementById('importFile').click()">⬆️ 백업 파일 불러오기</button>
+    </div>
+
+    <div style="background:#00e5ff08;border:1px solid #00e5ff33;border-radius:11px;padding:14px;font-size:11px;color:var(--text);line-height:1.7">
+      📱 <b>폰에서 쓰는 법:</b><br>
+      1. 이 앱을 GitHub Pages 등에 올려 웹 주소(URL)를 만들기<br>
+      2. 폰 브라우저로 그 주소 접속 → "홈 화면에 추가"<br>
+      3. Mac에서 백업 → 폰에서 복원하면 데이터 이동 완료<br>
+      <span style="color:var(--muted)">(GitHub Pages 올리는 법은 대화로 안내해드려요)</span>
+    </div>
+  `, [
+    {label:'닫기', cls:'btn-accent', action:'closeModal()'},
+  ]);
+  updateCloudBadge();
+}
+
+function genCloudCode() {
+  const code = 'nexiva-' + Math.random().toString(36).slice(2,8);
+  const el = document.getElementById('cloud-code');
+  if (el) el.value = code;
+}
+
+function saveCloudSync() {
+  const dbUrl = (document.getElementById('cloud-url').value||'').trim();
+  const code = (document.getElementById('cloud-code').value||'').trim();
+  const enabled = document.getElementById('cloud-enabled').checked;
+  if (enabled && (!dbUrl || !code)) { alert('동기화를 켜려면 DB URL과 코드가 필요해요'); return; }
+  if (dbUrl && !/^https:\/\/.+/.test(dbUrl)) { alert('Firebase URL은 https:// 로 시작해야 해요'); return; }
+  cloudCfg = { dbUrl: dbUrl.replace(/\/$/,''), code, enabled };
+  saveCloudCfg();
+  if (enabled) {
+    cloudConnect();
+    // 최초 연결: 로컬 데이터가 있으면 한 번 올려둠 (원격이 비었을 때 대비)
+    setTimeout(() => { if (!cloudApplying) cloudPushNow(); }, 1500);
+    showNotif('🌐 동기화 켜짐', '이제 같은 URL+코드를 쓰는 모든 기기가 실시간 공유됩니다.', [], true);
+  } else {
+    cloudDisconnect(); cloudStatus='off';
+    showNotif('동기화 꺼짐', '이 기기에만 저장됩니다.', [], true);
+  }
+  updateCloudBadge();
+}
+
+// 즉시 1회 푸시 (디바운스 없이)
+async function cloudPushNow() {
+  if (!cloudCfg.enabled || !cloudCfg.dbUrl || !cloudCfg.code) return;
+  const payload = {
+    staff: localStorage.getItem('nx_staff'),
+    done: localStorage.getItem('nx_done'),
+    mcp: localStorage.getItem('nx_mcp'),
+    suno: localStorage.getItem('nx_suno'),
+    ts: Date.now()
+  };
+  try { await fetch(cloudUrl(), { method:'PUT', body: JSON.stringify(payload) }); } catch(e) {}
+}
+
+function exportData() {
+  const data = {
+    _app: 'NEXIVA-HQ', _version: 1, _exported: new Date().toISOString(),
+    staff: localStorage.getItem('nx_staff'),
+    done: localStorage.getItem('nx_done'),
+    mcp: localStorage.getItem('nx_mcp'),
+    suno: localStorage.getItem('nx_suno')
+  };
+  const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = 'NEXIVA_백업_' + todayStr() + '.json';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+  showNotif('💾 백업 완료', '백업 파일이 저장되었습니다.\n다른 기기에서 이 파일로 복원하세요.', [], true);
+}
+
+function importData(input) {
+  const file = input.files && input.files[0];
+  if (!file) return;
+  const reader = new FileReader();
+  reader.onload = function(e) {
+    try {
+      const data = JSON.parse(e.target.result);
+      if (data._app !== 'NEXIVA-HQ') throw new Error('NEXIVA 백업 파일이 아닙니다');
+      if (!confirm('현재 데이터를 백업 파일 내용으로 덮어씁니다. 계속할까요?')) return;
+      if (data.staff != null) localStorage.setItem('nx_staff', data.staff);
+      if (data.done != null) localStorage.setItem('nx_done', data.done);
+      if (data.mcp != null) localStorage.setItem('nx_mcp', data.mcp);
+      if (data.suno != null) localStorage.setItem('nx_suno', data.suno);
+      alert('✅ 복원 완료! 앱을 새로고침합니다.');
+      location.reload();
+    } catch(err) {
+      alert('❌ 복원 실패: ' + err.message);
+    }
+  };
+  reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════
+//  매출 대시보드
+// ═══════════════════════════════════════════════
+const MONTHLY_GOAL = 10000000; // 월 1000만원 목표
+
+function todayStr() {
+  const d = new Date();
+  return d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+}
+function won(n) { return (n||0).toLocaleString('ko-KR') + '원'; }
+
+function sumRevenue(proj, filterFn) {
+  return (proj.revenue||[]).filter(filterFn||(()=>true)).reduce((a,r)=>a+(r.amount||0), 0);
+}
+
+function openRevenue() {
+  const live = completedProjects.filter(p => p.live);
+  const today = todayStr();
+  const month = today.slice(0,7); // YYYY-MM
+
+  // 전체 합계
+  let totalAll = 0, totalToday = 0, totalMonth = 0;
+  completedProjects.forEach(p => {
+    (p.revenue||[]).forEach(r => {
+      totalAll += r.amount||0;
+      if (r.date === today) totalToday += r.amount||0;
+      if ((r.date||'').slice(0,7) === month) totalMonth += r.amount||0;
+    });
+  });
+
+  const goalPct = Math.min(100, Math.round(totalMonth / MONTHLY_GOAL * 100));
+
+  const liveHtml = live.length ? live.map((p) => {
+    const realIdx = completedProjects.indexOf(p);
+    const pMonth = sumRevenue(p, r => (r.date||'').slice(0,7)===month);
+    const pToday = sumRevenue(p, r => r.date===today);
+    return `
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:11px;padding:13px;margin-bottom:10px">
+        <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+          <div style="font-weight:700;font-size:13px;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">🟢 ${p.project.name}</div>
+          <div style="font-size:11px;color:var(--muted);white-space:nowrap">${p.project.platform}</div>
+        </div>
+        <div style="display:flex;gap:14px;margin-bottom:10px">
+          <div><div style="font-size:9px;color:var(--muted)">오늘</div><div style="font-size:14px;font-weight:700;color:var(--accent)">${won(pToday)}</div></div>
+          <div><div style="font-size:9px;color:var(--muted)">이번달</div><div style="font-size:14px;font-weight:700;color:var(--green)">${won(pMonth)}</div></div>
+        </div>
+        <div style="display:flex;gap:7px">
+          <input id="rev-${realIdx}" type="number" inputmode="numeric" class="form-input" placeholder="오늘 매출 입력 (원)" style="flex:1;padding:8px 10px;font-size:13px"/>
+          <button class="btn btn-green" style="padding:8px 14px;font-size:12px" onclick="addRevenue(${realIdx})">+ 입력</button>
+        </div>
+      </div>`;
+  }).join('') : `<div style="text-align:center;padding:30px 16px;color:var(--muted);font-size:13px">아직 판매 중인 상품이 없어요.<br>프로젝트를 승인하고 업로드 체크리스트를 완료하면 여기에 나타나요.</div>`;
+
+  openModal('revenueModal', '💰 매출 관리', `
+    <div style="background:linear-gradient(135deg,#10b98115,#00e5ff10);border:1px solid #10b98133;border-radius:14px;padding:16px;margin-bottom:16px">
+      <div style="display:flex;justify-content:space-between;margin-bottom:12px">
+        <div><div style="font-size:10px;color:var(--muted)">오늘</div><div style="font-size:18px;font-weight:800;color:var(--accent)">${won(totalToday)}</div></div>
+        <div><div style="font-size:10px;color:var(--muted)">이번달</div><div style="font-size:18px;font-weight:800;color:var(--green)">${won(totalMonth)}</div></div>
+        <div><div style="font-size:10px;color:var(--muted)">누적</div><div style="font-size:18px;font-weight:800;color:var(--text)">${won(totalAll)}</div></div>
+      </div>
+      <div style="font-size:11px;color:var(--muted);margin-bottom:5px">🎯 월 목표 1,000만원 — ${goalPct}%</div>
+      <div style="height:10px;background:var(--bg);border-radius:5px;overflow:hidden">
+        <div style="height:100%;width:${goalPct}%;background:linear-gradient(90deg,#10b981,#00e5ff);border-radius:5px;transition:width .5s"></div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);margin-top:4px;text-align:right">남은 목표: ${won(Math.max(0, MONTHLY_GOAL-totalMonth))}</div>
+    </div>
+    <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px">판매 중인 상품 (${live.length})</div>
+    ${liveHtml}
+  `, [
+    {label:'닫기', cls:'btn-accent', action:'closeModal()'},
+  ]);
+}
+
+function addRevenue(idx) {
+  const inp = document.getElementById('rev-' + idx);
+  if (!inp) return;
+  const amt = parseInt((inp.value||'').replace(/[^\d]/g,''), 10);
+  if (!amt || amt <= 0) { alert('금액을 입력해주세요'); return; }
+  const proj = completedProjects[idx];
+  if (!proj) return;
+  if (!proj.revenue) proj.revenue = [];
+  // 오늘 날짜에 누적 (같은 날 여러 번 입력 시 합산)
+  const today = todayStr();
+  const existing = proj.revenue.find(r => r.date === today);
+  if (existing) existing.amount += amt;
+  else proj.revenue.push({ date: today, amount: amt });
+  saveDone();
+  openRevenue(); // 새로고침
+  showNotif('💰 입력 완료', `${won(amt)} 추가되었습니다.`, [], true);
+}
+
+function openDoneList() {
+  if (completedProjects.length === 0) {
+    openModal('doneModal', '📋 완료 프로젝트', `<div class="empty" style="text-align:center;padding:40px 20px;color:var(--muted)"><div style="font-size:36px;margin-bottom:10px">📋</div><div>완료된 프로젝트가 없습니다</div></div>`, [{label:'닫기',cls:'btn-accent',action:'closeModal()'}]);
+    return;
+  }
+  const list = completedProjects.map((p,i) => `
+    <div class="done-card">
+      <div class="done-header"><div class="done-name">✅ ${p.project.name}</div><div class="done-time">${p.timestamp}</div></div>
+      <div style="font-size:11px;color:var(--muted)">${p.project.platform} · ${p.project.revenue}</div>
+      <div class="done-actions">
+        <button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="viewDoneResult(${i})">결과물 보기</button>
+        <button class="btn btn-green" style="padding:5px 11px;font-size:11px" onclick="pdfDone(${i})">📄 PDF</button>
+        <button class="btn btn-purple" style="padding:5px 11px;font-size:11px" onclick="showUploadGuide(completedProjects[${i}].project)">📤 올리는 법</button>
+      </div>
+    </div>
+  `).join('');
+  openModal('doneModal', `📋 완료 프로젝트 (${completedProjects.length}건)`, list, [{label:'닫기',cls:'btn-accent',action:'closeModal()'}]);
+}
+
+function viewDoneResult(i) {
+  const p = completedProjects[i];
+  const editorResult = p.results['editor'] || Object.values(p.results)[0] || '';
+  openModal('doneResultModal', p.project.name, `<div class="review-result">${editorResult}</div>`, [{label:'닫기',cls:'btn-accent',action:'closeModal()'}]);
+}
+
+function pdfDone(i) {
+  const p = completedProjects[i];
+  const prev = {currentProject, taskResults};
+  currentProject = p.project;
+  taskResults = p.results;
+  downloadPDF(false);
+  currentProject = prev.currentProject;
+  taskResults = prev.taskResults;
+}
+
+// ═══════════════════════════════════════════════
+//  직원 관리
+// ═══════════════════════════════════════════════
+// ═══════════════════════════════════════════════
+//  MCP 연동 센터
+// ═══════════════════════════════════════════════
+// 추천 원격 MCP 템플릿 (URL/토큰은 사용자가 발급받아 입력)
+const MCP_TEMPLATES = [
+  {name:'web-search', label:'🔍 웹 검색', hint:'실시간 시장조사·트렌드 검색', urlHint:'예: https://your-search-mcp.example.com/sse'},
+  {name:'notion',     label:'📝 Notion',  hint:'기획·문서·DB 관리', urlHint:'Notion 원격 MCP 엔드포인트 URL'},
+  {name:'gdrive',     label:'📁 구글 드라이브', hint:'결과물 파일 저장·관리', urlHint:'Drive 원격 MCP 엔드포인트 URL'},
+  {name:'custom',     label:'➕ 직접 입력', hint:'아무 원격 MCP 서버나 추가', urlHint:'https://.../sse 또는 /mcp'},
+];
+
+function openMcpCenter() {
+  const installed = mcpServers.length ? mcpServers.map((m,i) => `
+    <div style="background:var(--card);border:1px solid var(--border);border-left:3px solid ${m.enabled?'var(--green)':'var(--muted)'};border-radius:10px;padding:11px 13px;margin-bottom:8px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
+        <div style="flex:1;min-width:0">
+          <div style="font-weight:700;font-size:13px;color:${m.enabled?'var(--green)':'var(--text)'}">${m.enabled?'🟢':'⚪'} ${m.name}</div>
+          <div style="font-size:10px;color:var(--muted);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${m.url||'(URL 없음)'}</div>
+        </div>
+        <div style="display:flex;gap:6px;flex-shrink:0">
+          <button class="btn ${m.enabled?'btn-yellow':'btn-green'}" style="padding:4px 9px;font-size:10px" onclick="toggleMcp(${i})">${m.enabled?'끄기':'켜기'}</button>
+          <button class="btn btn-red" style="padding:4px 9px;font-size:10px" onclick="deleteMcp(${i})">삭제</button>
+        </div>
+      </div>
+    </div>
+  `).join('') : `<div style="text-align:center;padding:24px;color:var(--muted);font-size:12px">연동된 MCP가 없습니다</div>`;
+
+  openModal('mcpModal', '🔌 MCP 연동 센터', `
+    <div style="background:#f59e0b10;border:1px solid #f59e0b33;border-radius:10px;padding:11px 13px;margin-bottom:14px;font-size:11px;color:#f59e0b;line-height:1.7">
+      ⚠️ <strong>원격(URL) MCP 서버만 연동됩니다.</strong> Anthropic 공식 MCP 커넥터를 사용해요.
+      로컬 데스크톱 앱(Canva 앱 등)은 브라우저에서 실행 불가합니다.
+      연동 후엔 모든 직원이 해당 도구를 자동으로 사용합니다.
+    </div>
+
+    <div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;margin-bottom:8px">연동된 서버</div>
+    ${installed}
+
+    <div style="font-size:11px;color:var(--muted);font-weight:700;letter-spacing:1px;margin:16px 0 8px">+ 새 MCP 추가</div>
+    <div style="margin-bottom:10px"><label class="form-label">이름</label>
+      <input id="mcp-name" class="form-input" placeholder="예: web-search"/></div>
+    <div style="margin-bottom:10px"><label class="form-label">서버 URL (원격 SSE/HTTP 엔드포인트)</label>
+      <input id="mcp-url" class="form-input" placeholder="https://example.com/sse"/></div>
+    <div style="margin-bottom:10px"><label class="form-label">인증 토큰 (선택)</label>
+      <input id="mcp-token" class="form-input" type="password" placeholder="필요한 경우만 입력"/></div>
+  `, [
+    {label:'➕ 추가하기', cls:'btn-green', action:'addMcp()', primary:true},
+    {label:'닫기', cls:'btn-red', action:'closeModal()'},
+  ]);
+}
+
+function addMcp() {
+  const name = document.getElementById('mcp-name')?.value.trim();
+  const url = document.getElementById('mcp-url')?.value.trim();
+  const token = document.getElementById('mcp-token')?.value.trim();
+  if (!name || !url) { alert('이름과 서버 URL은 필수입니다'); return; }
+  if (!/^https?:\/\//.test(url)) { alert('URL은 http:// 또는 https:// 로 시작해야 합니다'); return; }
+  mcpServers.push({ id:'mcp_'+Date.now(), name, url, token: token||'', enabled:true });
+  saveMcp();
+  openMcpCenter();
+}
+
+function toggleMcp(i) { mcpServers[i].enabled = !mcpServers[i].enabled; saveMcp(); openMcpCenter(); }
+function deleteMcp(i) { if(!confirm('이 MCP 연동을 삭제할까요?')) return; mcpServers.splice(i,1); saveMcp(); openMcpCenter(); }
+
+// ═══════════════════════════════════════════════
+//  Suno 음악 연동 센터
+// ═══════════════════════════════════════════════
+function openSunoCenter() {
+  const connected = sunoCfg.baseUrl && sunoCfg.apiKey;
+  openModal('sunoModal', '🎵 음악(Suno) API 연동', `
+    <div style="background:#f59e0b10;border:1px solid #f59e0b33;border-radius:10px;padding:11px 13px;margin-bottom:14px;font-size:11px;color:#f59e0b;line-height:1.7">
+      ⚠️ Suno 공식 API는 없어서 <strong>third-party / self-host API</strong>를 연결합니다.<br>
+      · <strong>동기식(sync)</strong>: 직접 띄운 suno-api(gcui-art) 등 — 호출 즉시 오디오 URL 반환<br>
+      · <strong>비동기식(async)</strong>: 유료 호스팅(sunoapi.org 등) — 작업ID 후 폴링<br>
+      ※ 브라우저 CORS 차단 시, 본인 서버(예: Vercel)에 띄운 API여야 동작합니다.
+    </div>
+    <div style="margin-bottom:10px"><label class="form-label">API Base URL</label>
+      <input id="suno-url" class="form-input" placeholder="예: https://내-suno-api.vercel.app" value="${sunoCfg.baseUrl||''}"/></div>
+    <div style="margin-bottom:10px"><label class="form-label">API 키 / 토큰 (필요 시)</label>
+      <input id="suno-key" class="form-input" type="password" placeholder="Bearer 토큰" value="${sunoCfg.apiKey||''}"/></div>
+    <div style="margin-bottom:10px"><label class="form-label">호출 방식</label>
+      <select id="suno-mode" class="form-input">
+        <option value="sync"${sunoCfg.mode==='sync'?' selected':''}>동기식 (즉시 오디오 반환 / self-host)</option>
+        <option value="async"${sunoCfg.mode==='async'?' selected':''}>비동기식 (작업ID 폴링 / 유료 호스팅)</option>
+      </select></div>
+    <div style="margin-bottom:10px"><label class="form-label">모델명 (선택, 비동기식만)</label>
+      <input id="suno-model" class="form-input" placeholder="예: V4 / chirp-v3-5 (비우면 기본값)" value="${sunoCfg.model||''}"/></div>
+    <div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+      <input type="checkbox" id="suno-inst" ${sunoCfg.instrumental?'checked':''} style="width:16px;height:16px"/>
+      <label for="suno-inst" style="font-size:12px;color:var(--text)">기본 instrumental(가사 없는 비트)로 생성</label>
+    </div>
+    <div style="font-size:11px;color:${connected?'var(--green)':'var(--muted)'};margin-top:8px">
+      ${connected?'🟢 연동됨 — 비트/음악 프로젝트 검토 시 [🎧 음원 생성] 버튼이 나타납니다':'⚪ 아직 미연동'}
+    </div>
+  `, [
+    {label:'💾 저장', cls:'btn-green', action:'saveSunoCfg()', primary:true},
+    {label:'닫기', cls:'btn-red', action:'closeModal()'},
+  ]);
+}
+
+function saveSunoCfg() {
+  sunoCfg = {
+    baseUrl: (document.getElementById('suno-url').value||'').trim().replace(/\/$/,''),
+    apiKey: (document.getElementById('suno-key').value||'').trim(),
+    mode: document.getElementById('suno-mode').value,
+    model: (document.getElementById('suno-model').value||'').trim(),
+    instrumental: document.getElementById('suno-inst').checked
+  };
+  saveSuno();
+  closeModal();
+  showNotif('🎵 저장 완료', 'Suno API 설정이 저장되었습니다.', [], true);
+}
+
+// ── 실제 음원 생성
+async function generateMusic(stylePrompt, lyrics, title) {
+  if (!sunoCfg.baseUrl) throw new Error('Suno API가 연동되지 않았습니다 (🎵 음악연동에서 설정)');
+  const headers = { 'Content-Type':'application/json' };
+  if (sunoCfg.apiKey) headers['Authorization'] = 'Bearer ' + sunoCfg.apiKey;
+  const instrumental = !!sunoCfg.instrumental;
+
+  if (sunoCfg.mode === 'sync') {
+    // gcui-art/suno-api 스타일: /api/custom_generate, wait_audio:true → [{audio_url,title}]
+    const body = {
+      prompt: lyrics || '',
+      tags: stylePrompt || '',
+      title: title || 'NEXIVA Track',
+      make_instrumental: instrumental,
+      wait_audio: true
+    };
+    const res = await fetch(sunoCfg.baseUrl + '/api/custom_generate', { method:'POST', headers, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error('Suno 호출 실패: HTTP ' + res.status);
+    const data = await res.json();
+    const arr = Array.isArray(data) ? data : (data.clips || data.data || []);
+    return arr.map(c => ({ title: c.title||title||'Track', url: c.audio_url||c.audioUrl||c.audio })).filter(c=>c.url);
+  } else {
+    // 비동기식: POST /api/v1/generate → taskId → 폴링
+    const body = {
+      prompt: lyrics || stylePrompt || '',
+      style: stylePrompt || '',
+      title: title || 'NEXIVA Track',
+      customMode: true,
+      instrumental: instrumental,
+      model: sunoCfg.model || undefined
+    };
+    const res = await fetch(sunoCfg.baseUrl + '/api/v1/generate', { method:'POST', headers, body: JSON.stringify(body) });
+    if (!res.ok) throw new Error('Suno 생성요청 실패: HTTP ' + res.status);
+    const init = await res.json();
+    const taskId = init.taskId || init.task_id || init.data?.taskId || init.id;
+    if (!taskId) throw new Error('작업ID를 받지 못했습니다: ' + JSON.stringify(init).slice(0,120));
+    // 폴링 (최대 5분)
+    for (let i=0; i<60; i++) {
+      await sleep(5000);
+      const pr = await fetch(sunoCfg.baseUrl + '/api/v1/generate/record-info?taskId=' + encodeURIComponent(taskId), { headers });
+      if (!pr.ok) continue;
+      const pd = await pr.json();
+      const items = pd.data?.response?.sunoData || pd.data?.sunoData || pd.data || [];
+      const ready = (Array.isArray(items)?items:[]).filter(c => c.audioUrl || c.audio_url);
+      if (ready.length) return ready.map(c => ({ title: c.title||title||'Track', url: c.audioUrl||c.audio_url }));
+      const status = pd.data?.status || pd.status;
+      if (/fail|error/i.test(status||'')) throw new Error('생성 실패: ' + status);
+    }
+    throw new Error('생성 시간 초과 (5분)');
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  클로드 디자이너 — 실제 SVG 표지 생성 (Canva 대체)
+// ═══════════════════════════════════════════════
+let lastDesignSvg = '';
+
+async function generateCoverDesign() {
+  const note = document.getElementById('designStatus');
+  const setStatus = (t) => { if (note) note.innerHTML = t; };
+  const designer = getStaff('designer') || { prompt:'당신은 디자이너입니다.', name:'한채원' };
+
+  try {
+    setStatus('🎨 한채원이 표지를 디자인하는 중...');
+    const kind = projectKind();
+    const sizeHint = kind==='video' ? '1280x720 가로형 썸네일' : '1080x1350 세로형 상품 표지';
+    const titleText = currentProject ? currentProject.name : 'NEXIVA';
+
+    const svgRaw = await callClaude(
+      designer.prompt + '\n너는 지금 프리미엄 SVG 표지 디자이너로 동작한다. 베스트셀러 상품 표지를 직접 그린다.',
+      [{role:'user', content:
+`"${titleText}" 상품의 ${sizeHint}를 **유효한 SVG 코드로만** 출력해.
+
+[출력 규칙 — 반드시 준수]
+- <svg ...> ~ </svg> 코드만 출력. 설명·마크다운·코드펜스(\`\`\`) 절대 금지
+- viewBox와 width/height 명시 (예: viewBox="0 0 1080 1350")
+- 외부 이미지(<image href>)·외부 폰트 import 금지
+- 모든 텍스트 font-family는 'sans-serif'만 (한글 깨짐 방지)
+
+[디자인 품질 기준 — 베스트셀러 표지처럼]
+- 시선 흐름: 가장 큰 메인 제목 → 부제 → 핵심 혜택 1~2줄 → 하단 브랜드/뱃지
+- 명확한 시각적 위계: 메인 제목은 아주 크고 굵게(font-weight 800), 부제는 작게
+- 배경: 부드러운 다중 그라데이션(<linearGradient>/<radialGradient>) + 미묘한 기하 장식(원/선/도형)으로 깊이감
+- 포인트 컬러로 강조 박스·밑줄·뱃지(예: "20페이지 완성본", "즉시 다운로드") 1~2개
+- 여백을 살려 답답하지 않게, 텍스트는 절대 가장자리에 닿지 않게(안전 여백 80px+)
+- 색 조합은 상품 성격에 맞게 (정보형=신뢰감 네이비/시안, 감성형=따뜻한 톤 등)
+- 긴 제목은 <tspan>으로 2~3줄 줄바꿈 처리
+- 가독성: 어두운 배경엔 밝은 글자, 충분한 대비
+프로 디자이너가 만든 듯 세련되고 클릭을 부르는 상업용 표지 수준으로.`}]
+    );
+
+    const match = svgRaw.match(/<svg[\s\S]*<\/svg>/i);
+    if (!match) throw new Error('SVG를 받지 못했습니다 (다시 시도해 주세요)');
+    lastDesignSvg = match[0];
+
+    setStatus(`
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;margin-top:6px">
+        <div id="designPreview" style="width:100%;max-width:280px;margin:0 auto;border-radius:6px;overflow:hidden;background:#000">${lastDesignSvg}</div>
+        <div style="display:flex;gap:7px;margin-top:10px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-green" style="padding:5px 11px;font-size:11px" onclick="downloadDesignPNG()">⬇️ PNG 저장</button>
+          <button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="downloadDesignSVG()">⬇️ SVG 저장</button>
+          <button class="btn btn-yellow" style="padding:5px 11px;font-size:11px" onclick="generateCoverDesign()">🔄 다시 디자인</button>
+        </div>
+      </div>`);
+    // SVG 미리보기 크기 맞춤
+    const svgEl = document.querySelector('#designPreview svg');
+    if (svgEl) { svgEl.style.width='100%'; svgEl.style.height='auto'; svgEl.style.display='block'; }
+  } catch(e) {
+    if (e.message && e.message.startsWith('rate_limit:')) setStatus('<span style="color:var(--yellow)">😴 토큰 재생성 중 — 잠시 후 다시 눌러주세요</span>');
+    else setStatus(`<span style="color:var(--red)">❌ ${e.message}</span>`);
+  }
+}
+
+function downloadDesignSVG() {
+  if (!lastDesignSvg) return;
+  const blob = new Blob([lastDesignSvg], {type:'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = (currentProject?currentProject.name:'design').replace(/[\/\\:*?"<>|]/g,'_') + '.svg';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+function downloadDesignPNG() {
+  if (!lastDesignSvg) return;
+  // viewBox에서 크기 추출
+  let w = 1080, h = 1350;
+  const vb = lastDesignSvg.match(/viewBox=["']\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s+([\d.]+)/i);
+  if (vb) { w = Math.round(parseFloat(vb[1])); h = Math.round(parseFloat(vb[2])); }
+  const svgBlob = new Blob([lastDesignSvg], {type:'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(svgBlob);
+  const img = new Image();
+  img.onload = function() {
+    const scale = 2; // 고해상도
+    const canvas = document.createElement('canvas');
+    canvas.width = w*scale; canvas.height = h*scale;
+    const ctx = canvas.getContext('2d');
+    ctx.fillStyle = '#0b0f17'; ctx.fillRect(0,0,canvas.width,canvas.height);
+    ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+    URL.revokeObjectURL(url);
+    canvas.toBlob(function(blob) {
+      const u = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = u; a.download = (currentProject?currentProject.name:'design').replace(/[\/\\:*?"<>|]/g,'_') + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(u), 1000);
+    }, 'image/png');
+  };
+  img.onerror = function() { URL.revokeObjectURL(url); alert('PNG 변환 실패 — SVG로 저장 후 사용해주세요'); };
+  img.src = url;
+}
+
+// 검토 화면에서 Suno 프롬프트 추출 (복사용)
+let sunoExtracted = { title:'', style:'', lyrics:'' };
+
+async function extractSunoPrompt() {
+  const note = document.getElementById('sunoPromptBox');
+  const setBox = (t) => { if (note) note.innerHTML = t; };
+  try {
+    setBox('⚙️ Claude가 Styles · Lyrics를 추출하는 중...');
+    const pkg = window._lastReviewText || taskResults['editor'] || '';
+    const extract = await callClaude(
+      '너는 Suno 음악 생성용 프롬프트 추출기다. 제작 패키지에서 Suno에 바로 붙여넣을 정보만 JSON으로 출력한다.',
+      [{role:'user', content:`아래 제작 패키지에서 첫 번째 트랙 정보를 JSON으로만 출력해.
+형식: {"title":"트랙 제목(짧게)","style":"Suno Styles 칸에 넣을 장르·분위기·악기·BPM·보컬 톤 등 (영문 권장, 쉼표로 구분, 200자 내외)","lyrics":"Suno Lyrics 칸에 넣을 가사 — [Verse]/[Chorus] 구조 포함, instrumental이면 빈 문자열"}
+
+${pkg.slice(0,3500)}`}]
+    );
+    try { sunoExtracted = JSON.parse(extract.replace(/```json|```/g,'').trim()); }
+    catch(e) { sunoExtracted = { title: currentProject?currentProject.name:'Track', style: pkg.slice(0,200), lyrics:'' }; }
+
+    const s = sunoExtracted;
+    setBox(`
+      <div style="text-align:left">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:11px;font-weight:700;color:var(--text)">🏷️ Title (제목)</span>
+          <button class="btn btn-accent" style="padding:3px 9px;font-size:10px" onclick="copyText(sunoExtracted.title)">복사</button>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px;font-size:11px;margin-bottom:10px;color:var(--text)">${s.title||'-'}</div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:11px;font-weight:700;color:var(--text)">🎚️ Styles (스타일)</span>
+          <button class="btn btn-accent" style="padding:3px 9px;font-size:10px" onclick="copyText(sunoExtracted.style)">복사</button>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px;font-size:11px;margin-bottom:10px;color:var(--text);white-space:pre-wrap">${s.style||'-'}</div>
+
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <span style="font-size:11px;font-weight:700;color:var(--text)">🎤 Lyrics (가사)</span>
+          <button class="btn btn-accent" style="padding:3px 9px;font-size:10px" onclick="copyText(sunoExtracted.lyrics)">복사</button>
+        </div>
+        <div style="background:var(--bg);border:1px solid var(--border);border-radius:6px;padding:7px;font-size:11px;color:var(--text);white-space:pre-wrap;max-height:140px;overflow-y:auto">${s.lyrics||'(instrumental — 가사 없음)'}</div>
+
+        <div style="font-size:10px;color:var(--muted);margin-top:8px;line-height:1.6">
+          👉 Suno → Create → <b>Advanced</b> 에서 각 칸(Title / Styles / Lyrics)에 붙여넣고 <b>Create</b> 누르면 끝!
+        </div>
+      </div>
+    `);
+  } catch(e) {
+    if (e.message && e.message.startsWith('rate_limit:')) setBox('<span style="color:var(--yellow)">😴 토큰 재생성 중 — 잠시 후 다시 눌러주세요</span>');
+    else setBox(`<span style="color:var(--red)">❌ ${e.message}</span>`);
+  }
+}
+
+function openManage() {
+  const list = STAFF.map(s => `
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:12px;display:flex;align-items:center;gap:10px;margin-bottom:8px">
+      <div style="width:36px;height:36px;border-radius:9px;background:${s.color}18;border:1.5px solid ${s.color}40;display:flex;align-items:center;justify-content:center;font-size:18px;flex-shrink:0">${s.emoji}</div>
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:700;font-size:13px;color:${s.color}">${s.name}</div>
+        <div style="font-size:10px;color:var(--muted)">${s.role} · ${s.dept}</div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button class="btn btn-accent" style="padding:4px 10px;font-size:10px" onclick="openEditStaff('${s.id}')">편집</button>
+        ${!DEFAULT_STAFF.find(d=>d.id===s.id)?`<button class="btn btn-red" style="padding:4px 10px;font-size:10px" onclick="deleteStaff('${s.id}')">삭제</button>`:''}
+      </div>
+    </div>
+  `).join('');
+
+  openModal('manageModal', '👥 직원 관리', list, [
+    {label:'+ 새 직원 추가', cls:'btn-green', action:'openAddStaff()'},
+    {label:'닫기', cls:'btn-red', action:'closeModal()'},
+  ]);
+}
+
+function openAddStaff() {
+  staffEditId = null; editEmoji='🤖'; editColor='#00e5ff';
+  showStaffForm(null);
+}
+
+function openEditStaff(id) {
+  staffEditId = id;
+  const s = getStaff(id);
+  editEmoji = s ? s.emoji : '🤖';
+  editColor = s ? s.color : '#00e5ff';
+  showStaffForm(s);
+}
+
+function showStaffForm(s) {
+  const isEdit = !!s;
+  openModal('staffFormModal', isEdit?'직원 편집':'새 직원 추가', `
+    <div style="margin-bottom:12px"><label class="form-label">이름</label><input id="sf-name" class="form-input" value="${s?s.name:''}" placeholder="예: 김철수"/></div>
+    <div style="margin-bottom:12px"><label class="form-label">역할</label><input id="sf-role" class="form-input" value="${s?s.role:''}" placeholder="예: 영상 편집자"/></div>
+    <div style="margin-bottom:12px"><label class="form-label">부서</label>
+      <select id="sf-dept" class="form-input">
+        ${['기획팀','제작팀','품질팀','크리에이티브','경영지원'].map(d=>`<option value="${d}"${s&&s.dept===d?' selected':''}>${d}</option>`).join('')}
+      </select>
+    </div>
+    <div style="margin-bottom:12px"><label class="form-label">이모지</label>
+      <div class="emoji-row">${EMOJI_LIST.map(e=>`<div class="ep${e===editEmoji?' sel':''}" onclick="pickEmoji(this,'${e}')">${e}</div>`).join('')}</div>
+    </div>
+    <div style="margin-bottom:12px"><label class="form-label">색상</label>
+      <div class="color-row">${COLOR_LIST.map(c=>`<div class="cp${c===editColor?' sel':''}" style="background:${c}" onclick="pickColor(this,'${c}')"></div>`).join('')}</div>
+    </div>
+    <div style="margin-bottom:12px"><label class="form-label">스킬 주입 (시스템 프롬프트)</label>
+      <textarea id="sf-prompt" class="form-textarea" style="min-height:120px">${s?s.prompt:''}</textarea>
+    </div>
+    <div style="margin-bottom:12px"><label class="form-label">대기 멘트 (쉼표로 구분)</label>
+      <input id="sf-idle" class="form-input" value="${s&&s.idle?s.idle.join(', '):''}" placeholder="아이디어 구상 중..., 작업 준비 중..."/></div>
+  `, [
+    {label:isEdit?'💾 저장':'✅ 추가', cls:'btn-green', action:'saveStaffForm()', primary:true},
+    {label:'취소', cls:'btn-red', action:'closeModal()'},
+  ]);
+}
+
+function pickEmoji(el, e) {
+  editEmoji = e;
+  document.querySelectorAll('.ep').forEach(x=>x.classList.remove('sel'));
+  el.classList.add('sel');
+}
+function pickColor(el, c) {
+  editColor = c;
+  document.querySelectorAll('.cp').forEach(x=>x.classList.remove('sel'));
+  el.classList.add('sel');
+}
+
+function saveStaffForm() {
+  const name=document.getElementById('sf-name')?.value.trim();
+  const role=document.getElementById('sf-role')?.value.trim();
+  const dept=document.getElementById('sf-dept')?.value;
+  const prompt=document.getElementById('sf-prompt')?.value.trim();
+  const idleRaw=document.getElementById('sf-idle')?.value.trim();
+  const idle = idleRaw ? idleRaw.split(',').map(s=>s.trim()).filter(Boolean) : ['작업 준비 중...'];
+
+  if (!name||!role||!prompt) { alert('이름, 역할, 스킬 프롬프트는 필수입니다'); return; }
+
+  if (staffEditId) {
+    const idx = STAFF.findIndex(s=>s.id===staffEditId);
+    if (idx>=0) STAFF[idx] = {...STAFF[idx], name, role, dept, emoji:editEmoji, color:editColor, prompt, idle};
+  } else {
+    STAFF.push({id:'staff_'+Date.now(), name, role, dept, emoji:editEmoji, color:editColor, prompt, idle});
+  }
+  saveStaff();
+  closeModal();
+  renderAll();
+}
+
+function deleteStaff(id) {
+  if (!confirm('이 직원을 삭제하시겠습니까?')) return;
+  STAFF = STAFF.filter(s=>s.id!==id);
+  saveStaff();
+  closeModal();
+  renderAll();
+}
+
+// ═══════════════════════════════════════════════
+//  알림 시스템
+// ═══════════════════════════════════════════════
+function showNotif(title, body, actions, autoClose) {
+  const existing = document.getElementById('notif');
+  if (existing) existing.remove();
+
+  const el = document.createElement('div');
+  el.id = 'notif';
+  el.className = 'notif';
+  const actHtml = actions.map(a=>`<button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="${a.action}">${a.label}</button>`).join('');
+  el.innerHTML = `
+    <div style="display:flex;justify-content:space-between;align-items:flex-start;gap:8px;margin-bottom:6px">
+      <div class="notif-title">${title}</div>
+      <button onclick="closeNotif()" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:18px;line-height:1">✕</button>
+    </div>
+    <div class="notif-body">${body.replace(/\n/g,'<br>')}</div>
+    ${actHtml?`<div class="notif-actions">${actHtml}</div>`:''}
+  `;
+  document.body.appendChild(el);
+  if (autoClose) setTimeout(closeNotif, 5000);
+}
+
+function closeNotif() { const el=document.getElementById('notif'); if(el) el.remove(); }
+
+// ═══════════════════════════════════════════════
+//  모달 공통
+// ═══════════════════════════════════════════════
+let activeModal = null;
+
+function openModal(id, title, bodyHtml, buttons) {
+  if (activeModal) { const old=document.getElementById(activeModal); if(old) old.remove(); }
+  activeModal = id;
+
+  const btnsHtml = (buttons||[]).map(b =>
+    `<button class="btn ${b.cls}" onclick="${b.action}"${b.primary?' style="flex:1"':''}>${b.label}</button>`
+  ).join('');
+
+  const el = document.createElement('div');
+  el.className = 'overlay';
+  el.id = id;
+  el.innerHTML = `
+    <div class="modal" onclick="event.stopPropagation()">
+      <div class="modal-header">
+        <div class="modal-title">${title}</div>
+        <button class="x-btn" onclick="closeModal()">✕</button>
+      </div>
+      <div class="modal-body">${bodyHtml}</div>
+      ${btnsHtml?`<div class="modal-footer">${btnsHtml}</div>`:''}
+    </div>
+  `;
+  el.addEventListener('click', closeModal);
+  document.body.appendChild(el);
+}
+
+function closeModal() {
+  if (activeModal) {
+    const el = document.getElementById(activeModal);
+    if (el) el.remove();
+    activeModal = null;
+  }
+}
+
+// ═══════════════════════════════════════════════
+//  말풍선 랜덤
+// ═══════════════════════════════════════════════
+function startSpeechTimers() {
+  STAFF.forEach(s => scheduleSpeech(s.id));
+}
+
+function scheduleSpeech(staffId) {
+  const delay = 7000 + Math.random() * 12000;
+  setTimeout(() => {
+    const st = taskStatus[staffId] || 'idle';
+    if (st === 'idle') {
+      const s = getStaff(staffId);
+      if (s && s.idle && s.idle.length) {
+        const phrase = s.idle[Math.floor(Math.random()*s.idle.length)];
+        speechActive[staffId] = phrase;
+        renderOffice();
+        setTimeout(() => { delete speechActive[staffId]; renderOffice(); }, 3500);
+      }
+    }
+    scheduleSpeech(staffId);
+  }, delay);
+}
+
+// ═══════════════════════════════════════════════
+//  헬퍼
+// ═══════════════════════════════════════════════
+function getStaff(id) { return STAFF.find(s=>s.id===id); }
+
+// 프로젝트 종류 분류 (납품물 형식 결정)
+function guessKind(p) {
+  if (!p) return 'doc';
+  const t = ((p.name||'') + (p.dept||'') + (p.plan||'')).toLowerCase();
+  if (/비트|beat|808|트랩|힙합/.test(t)) return 'beat';
+  if (/음악|뮤직|music|bgm|노래|작곡|suno|udio|sound/.test(t)) return 'music';
+  if (/영상|비디오|video|유튜브|youtube|숏폼|쇼츠|릴스|틱톡/.test(t)) return 'video';
+  return 'doc';
+}
+function projectKind() { return guessKind(currentProject); }
+
+// 텍스트 파일(.txt)로 저장 — 프롬프트 패키지용
+function saveTxt(filename, text) {
+  const blob = new Blob([text], {type:'text/plain;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = filename.replace(/[\/\\:*?"<>|]/g,'_') + '.txt';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+
+// 클립보드 복사
+function copyText(text) {
+  navigator.clipboard.writeText(text).then(
+    () => showNotif('📋 복사 완료', '프롬프트가 클립보드에 복사되었습니다.', [], true),
+    () => alert('복사 실패 — 직접 선택해 복사해주세요')
+  );
+}
+
+// ═══════════════════════════════════════════════
+//  부트
+// ═══════════════════════════════════════════════
+function boot() {
+  renderAll();
+  setTimeout(startSpeechTimers, 2000);
+  if (cloudCfg.enabled && cloudCfg.dbUrl && cloudCfg.code) cloudConnect();
+}
+</script>
+</body>
+</html>
