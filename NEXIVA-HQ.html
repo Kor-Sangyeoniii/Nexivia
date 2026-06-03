@@ -1577,8 +1577,9 @@ footer{margin-top:50px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:1
 // ═══════════════════════════════════════════════
 //  직원 개인 채팅
 // ═══════════════════════════════════════════════
-let staffChatHistory = {};
+let staffChatHistory = JSON.parse(localStorage.getItem('nx_chats') || '{}');
 let staffChatLoading = {};
+function saveChats() { try { localStorage.setItem('nx_chats', JSON.stringify(staffChatHistory)); } catch(e){} }
 
 // ── 라이브 패널 업데이트 (스트리밍 중 실시간 반영)
 function updateLivePanel(staffId, text, done) {
@@ -1684,6 +1685,7 @@ function pdfFromLive(staffId) {
 function clearStaffChat(staffId) {
   const s = getStaff(staffId);
   staffChatHistory[staffId] = [{role:'ai', text:`대화를 초기화했습니다. ${s?s.name:''}에게 새로운 업무를 지시하세요.`}];
+  saveChats();
   refreshStaffChatUI(staffId, s, false);
 }
 
@@ -1776,6 +1778,7 @@ async function sendStaffChat(staffId) {
     }
   }
   staffChatLoading[staffId] = false;
+  saveChats();   // ★ 대화 저장 (새로고침해도 유지)
   renderOffice();
   refreshStaffChatUI(staffId, s, false);
 }
@@ -1816,10 +1819,25 @@ function refreshStaffChatUI(staffId, s, loading) {
   const box = document.getElementById('sChatBox');
   if (!box) return;
   box.innerHTML = staffChatHistory[staffId].map(m => {
-    if(m.role==='ai') return `<div class="msg ai"><div class="msg-av" style="background:${s.color}20;border:1px solid ${s.color}30">${s.emoji}</div><div class="msg-bubble"><div class="msg-name" style="color:${s.color}">${s.name}</div>${m.text}${m.text.length>200?`<div style="margin-top:6px"><button class="btn btn-accent" style="padding:4px 10px;font-size:11px" onclick="openPDFFromText('${staffId}')">📄 PDF</button></div>`:''}</div></div>`;
+    if(m.role==='ai') return `<div class="msg ai"><div class="msg-av" style="background:${s.color}20;border:1px solid ${s.color}30">${s.emoji}</div><div class="msg-bubble"><div class="msg-name" style="color:${s.color}">${s.name}</div>${m.text}${m.text.length>200?`<div style="margin-top:6px;display:flex;gap:5px;flex-wrap:wrap"><button class="btn btn-green" style="padding:4px 10px;font-size:11px" onclick="saveChatToDone('${staffId}')">💾 완료목록 저장</button><button class="btn btn-accent" style="padding:4px 10px;font-size:11px" onclick="openPDFFromText('${staffId}')">📄 PDF</button></div>`:''}</div></div>`;
     return `<div class="msg user"><div class="msg-bubble">${m.text}</div></div>`;
   }).join('') + (loading ? `<div class="msg ai"><div class="msg-av" style="background:${s.color}20">${s.emoji}</div><div class="msg-bubble"><div class="typing"><span></span><span></span><span></span></div></div></div>` : '');
   box.scrollTop = box.scrollHeight;
+}
+
+// 대화 결과를 완료목록에 저장 (Firebase/폰 동기화 + 영구 보관)
+function saveChatToDone(staffId) {
+  const s = getStaff(staffId);
+  const last = staffChatHistory[staffId] && staffChatHistory[staffId].slice().reverse().find(m => m.role==='ai' && m.text.length>100);
+  if (!last || !s) { alert('저장할 결과가 없어요'); return; }
+  completedProjects.unshift({
+    project: { name: s.name + ' — 대화 결과', platform: '직접대화', revenue: '-', plan: last.text.slice(0,80), dept: s.dept },
+    results: { editor: last.text },
+    timestamp: new Date().toLocaleString('ko-KR'),
+    status: 'task', kind: 'doc', live: false, revenue: [], fromChat: true
+  });
+  saveDone();
+  showNotif('💾 저장 완료', '완료목록에 저장했어요 (폰에도 동기화).', [], true);
 }
 
 function openPDFFromText(staffId) {
@@ -1895,10 +1913,29 @@ function openSettings() {
       3. Mac에서 백업 → 폰에서 복원하면 데이터 이동 완료<br>
       <span style="color:var(--muted)">(GitHub Pages 올리는 법은 대화로 안내해드려요)</span>
     </div>
+
+    <div style="background:#ef444410;border:1px solid #ef444433;border-radius:11px;padding:14px;margin-top:16px">
+      <div style="font-size:13px;font-weight:700;margin-bottom:6px;color:var(--red)">⚠️ 전체 데이터 초기화</div>
+      <div style="font-size:11px;color:var(--muted);line-height:1.6;margin-bottom:10px">직원·완료목록·매출·수익목록·작업큐·대화·브리핑을 <b>모두 삭제</b>하고 처음부터 시작해요. (API키·동기화 설정은 유지) 되돌릴 수 없어요.</div>
+      <button class="btn btn-red" style="width:100%" onclick="resetAllData()">🗑️ 모든 데이터 초기화</button>
+    </div>
   `, [
     {label:'닫기', cls:'btn-accent', action:'closeModal()'},
   ]);
   updateCloudBadge();
+}
+
+function resetAllData() {
+  if (!confirm('정말 모든 데이터를 초기화할까요?\n직원·완료목록·매출·작업큐·대화·브리핑이 전부 삭제됩니다.')) return;
+  if (!confirm('한 번 더 확인할게요. 진짜 처음부터 다시 시작하시겠어요? (되돌릴 수 없어요)')) return;
+  // 로컬 삭제 (API키 nx_key, 동기화 nx_cloud 는 유지)
+  ['nx_staff','nx_done','nx_mcp','nx_suno','nx_ledger','nx_queue','nx_chats','nx_brief_seen','nx_project','nx_agenda','nx_results','nx_schedules']
+    .forEach(k => localStorage.removeItem(k));
+  // 클라우드도 비우기 (연결돼 있으면)
+  if (cloudCfg.enabled && cloudCfg.dbUrl && cloudCfg.code) {
+    try { fetch(cloudUrl(), { method:'PUT', body: JSON.stringify(null) }); } catch(e) {}
+  }
+  setTimeout(() => { alert('✅ 초기화 완료! 새로 시작합니다.'); location.reload(); }, 400);
 }
 
 function genCloudCode() {
