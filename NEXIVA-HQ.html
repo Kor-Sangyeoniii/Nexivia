@@ -316,7 +316,8 @@ input,textarea,select{font-family:inherit;font-size:14px;outline:none}
 //  상수 & 기본값
 // ═══════════════════════════════════════════════
 const MODEL = 'claude-sonnet-4-6';
-const MAX_TOKENS = 4000;
+const MAX_TOKENS = 8000;
+let _lastStreamStop = 'end_turn';
 
 const DEFAULT_STAFF = [
   {id:'planner',   name:'박준서', role:'전략기획팀장', dept:'기획팀',      emoji:'💡', color:'#f59e0b',
@@ -591,9 +592,30 @@ async function callClaudeStream(system, messages, staffId, onChunk) {
           full += ev.delta.text;
           if (onChunk) onChunk(full);
         }
+        if (ev.type === 'message_delta' && ev.delta?.stop_reason) {
+          _lastStreamStop = ev.delta.stop_reason;   // 잘림 여부 감지
+        }
         if (ev.type === 'error') throw new Error(ev.error?.message || 'stream error');
       } catch(e) { if (e.message.includes('stream error')) throw e; }
     }
+  }
+  return full;
+}
+
+// ── 긴 글 자동 이어쓰기 (잘리면 끝까지 이어붙임)
+async function streamLong(system, baseMessages, staffId, onChunk, maxRounds = 6) {
+  const messages = baseMessages.slice();
+  let full = '';
+  for (let i = 0; i < maxRounds; i++) {
+    _lastStreamStop = 'end_turn';
+    const part = await callClaudeStream(system, messages, staffId, (partial) => {
+      if (onChunk) onChunk(full + (i > 0 ? '\n' : '') + partial);
+    });
+    full += (i > 0 ? '\n' : '') + part;
+    if (_lastStreamStop !== 'max_tokens') break;  // 끝까지 다 씀
+    messages.push({ role: 'assistant', content: part });
+    messages.push({ role: 'user', content: '끊긴 부분 바로 다음부터 이어서 계속 작성해줘. 이미 쓴 내용은 절대 반복하지 말고, 인사말 없이 본문만 이어가.' });
+    if (onChunk) onChunk(full + '\n\n…(이어쓰는 중)');
   }
   return full;
 }
@@ -1116,7 +1138,7 @@ async function runTask(staff, taskPrompt) {
     streamBuf[staff.id] = '';
     renderOffice();
     try {
-      const result = await callClaudeStream(
+      const result = await streamLong(
         staff.prompt,
         [{role:'user', content: taskPrompt}],
         staff.id,
