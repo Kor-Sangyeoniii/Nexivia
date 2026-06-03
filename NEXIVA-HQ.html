@@ -526,97 +526,131 @@ function startApp() {
 //  Claude API
 // ═══════════════════════════════════════════════
 async function callClaude(system, messages, staffId) {
-  for (let attempt = 0; attempt < 3; attempt++) {
-    let res;
+  const MAX = 6;
+  let lastErr = null;
+  for (let attempt = 0; attempt < MAX; attempt++) {
     try {
       const headers = {'Content-Type':'application/json','x-api-key':API_KEY,'anthropic-version':'2023-06-01','anthropic-dangerous-direct-browser-access':'true'};
       const body = {model:MODEL, max_tokens:MAX_TOKENS, system, messages};
       const mcp = activeMcpPayload();
       if (mcp) { body.mcp_servers = mcp; headers['anthropic-beta'] = 'mcp-client-2025-04-04'; }
-      res = await fetch('https://api.anthropic.com/v1/messages', {
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
         method:'POST', headers, body: JSON.stringify(body)
       });
-    } catch(e) { throw new Error('네트워크 오류: ' + e.message); }
 
-    if (res.status === 429 || res.status === 529 || res.status === 503) {
-      const wait = parseInt(res.headers.get('retry-after')||'60',10);
-      if (staffId) startRest(staffId, wait);
-      if (attempt < 2) { await sleep(wait * 1000); if (staffId) { taskStatus[staffId]='working'; renderOffice(); } continue; }
-      throw new Error('rate_limit:' + wait);
-    }
-    const data = await res.json();
-    if (data.error) {
-      if (/rate_limit|overloaded/i.test(data.error.type||'')) {
-        if (staffId) startRest(staffId, 60);
-        throw new Error('rate_limit:60');
+      if (res.status === 429 || res.status === 529 || res.status === 503 || res.status === 502) {
+        const wait = parseInt(res.headers.get('retry-after')||'30',10);
+        if (staffId) startRest(staffId, wait);
+        await sleep(wait * 1000);
+        if (staffId) { taskStatus[staffId]='working'; renderOffice(); }
+        lastErr = new Error('rate_limit:' + wait);
+        continue;
       }
-      throw new Error(data.error.message || JSON.stringify(data.error));
+      const data = await res.json();
+      if (data.error) {
+        if (/rate_limit|overloaded/i.test(data.error.type||'')) {
+          if (staffId) startRest(staffId, 30);
+          await sleep(30000);
+          lastErr = new Error('rate_limit:30');
+          continue;
+        }
+        throw new Error(data.error.message || JSON.stringify(data.error));
+      }
+      const textBlocks = (data.content || []).filter(c => c.type === 'text').map(c => c.text);
+      return textBlocks.join('\n') || '(응답 없음)';
+    } catch(e) {
+      lastErr = e;
+      if (isTransient(e.message) && attempt < MAX - 1) {
+        await sleep(2500 + attempt * 2500);
+        continue;
+      }
+      throw e;
     }
-    // MCP 사용 시 tool_use 블록이 섞일 수 있으므로 text 블록만 추출
-    const textBlocks = (data.content || []).filter(c => c.type === 'text').map(c => c.text);
-    return textBlocks.join('\n') || '(응답 없음)';
   }
+  throw lastErr || new Error('알 수 없는 오류');
 }
 
 function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
 
-// ── 스트리밍 Claude API (글자 단위 실시간)
+// 일시적(재시도 가능) 네트워크 오류 판별
+function isTransient(msg) {
+  return /network|fetch|stream|load failed|terminated|aborted|ECONN|timeout|reset|socket|503|502|overload/i.test(msg || '');
+}
+
+// ── 스트리밍 Claude API (네트워크 끊겨도 자동 재시도)
 async function callClaudeStream(system, messages, staffId, onChunk) {
-  let res;
-  try {
-    const headers = {
-      'Content-Type': 'application/json',
-      'x-api-key': API_KEY,
-      'anthropic-version': '2023-06-01',
-      'anthropic-dangerous-direct-browser-access': 'true'
-    };
-    const body = { model: MODEL, max_tokens: MAX_TOKENS, system, messages, stream: true };
-    const mcp = activeMcpPayload();
-    if (mcp) { body.mcp_servers = mcp; headers['anthropic-beta'] = 'mcp-client-2025-04-04'; }
-    res = await fetch('https://api.anthropic.com/v1/messages', {
-      method: 'POST', headers, body: JSON.stringify(body)
-    });
-  } catch(e) { throw new Error('네트워크 오류: ' + e.message); }
+  const MAX = 6;
+  let lastErr = null;
+  for (let attempt = 0; attempt < MAX; attempt++) {
+    let full = '';
+    try {
+      const headers = {
+        'Content-Type': 'application/json',
+        'x-api-key': API_KEY,
+        'anthropic-version': '2023-06-01',
+        'anthropic-dangerous-direct-browser-access': 'true'
+      };
+      const body = { model: MODEL, max_tokens: MAX_TOKENS, system, messages, stream: true };
+      const mcp = activeMcpPayload();
+      if (mcp) { body.mcp_servers = mcp; headers['anthropic-beta'] = 'mcp-client-2025-04-04'; }
 
-  if (res.status === 429 || res.status === 529 || res.status === 503) {
-    const wait = parseInt(res.headers.get('retry-after') || '60', 10);
-    if (staffId) startRest(staffId, wait);
-    throw new Error('rate_limit:' + wait);
-  }
-  if (!res.ok) {
-    const d = await res.json().catch(()=>({}));
-    throw new Error(d.error?.message || 'HTTP ' + res.status);
-  }
+      const res = await fetch('https://api.anthropic.com/v1/messages', {
+        method: 'POST', headers, body: JSON.stringify(body)
+      });
 
-  const reader = res.body.getReader();
-  const dec = new TextDecoder();
-  let full = '';
-  let buf = '';
+      // 과부하/레이트리밋 → 잠시 쉬고 재시도
+      if (res.status === 429 || res.status === 529 || res.status === 503 || res.status === 502) {
+        const wait = parseInt(res.headers.get('retry-after') || '30', 10);
+        if (staffId) startRest(staffId, wait);
+        await sleep(wait * 1000);
+        if (staffId) { taskStatus[staffId] = 'working'; renderOffice(); }
+        lastErr = new Error('rate_limit:' + wait);
+        continue;
+      }
+      if (!res.ok) {
+        const d = await res.json().catch(() => ({}));
+        // 4xx 등 진짜 오류는 재시도 의미 없음
+        throw new Error(d.error?.message || ('HTTP ' + res.status));
+      }
 
-  while (true) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    buf += dec.decode(value, { stream: true });
-    const lines = buf.split('\n');
-    buf = lines.pop();
-    for (const line of lines) {
-      if (!line.startsWith('data: ')) continue;
-      const raw = line.slice(6).trim();
-      if (raw === '[DONE]') continue;
-      try {
-        const ev = JSON.parse(raw);
-        if (ev.type === 'content_block_delta' && ev.delta?.text) {
-          full += ev.delta.text;
-          if (onChunk) onChunk(full);
+      const reader = res.body.getReader();
+      const dec = new TextDecoder();
+      let buf = '';
+      _lastStreamStop = 'end_turn';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+        buf += dec.decode(value, { stream: true });
+        const lines = buf.split('\n');
+        buf = lines.pop();
+        for (const line of lines) {
+          if (!line.startsWith('data: ')) continue;
+          const raw = line.slice(6).trim();
+          if (raw === '[DONE]') continue;
+          try {
+            const ev = JSON.parse(raw);
+            if (ev.type === 'content_block_delta' && ev.delta?.text) {
+              full += ev.delta.text;
+              if (onChunk) onChunk(full);
+            }
+            if (ev.type === 'message_delta' && ev.delta?.stop_reason) _lastStreamStop = ev.delta.stop_reason;
+            if (ev.type === 'error') throw new Error(ev.error?.message || 'stream error');
+          } catch(e) { if (e.message.includes('stream error')) throw e; }
         }
-        if (ev.type === 'message_delta' && ev.delta?.stop_reason) {
-          _lastStreamStop = ev.delta.stop_reason;   // 잘림 여부 감지
-        }
-        if (ev.type === 'error') throw new Error(ev.error?.message || 'stream error');
-      } catch(e) { if (e.message.includes('stream error')) throw e; }
+      }
+      return full;   // ✅ 성공
+    } catch(e) {
+      lastErr = e;
+      if (isTransient(e.message) && attempt < MAX - 1) {
+        if (staffId) { taskStatus[staffId] = 'working'; renderOffice(); }
+        await sleep(2500 + attempt * 2500);   // 점점 길게 대기 후 재시도
+        continue;
+      }
+      throw e;   // 비일시적 오류는 즉시 전파
     }
   }
-  return full;
+  throw lastErr || new Error('알 수 없는 오류');
 }
 
 // ── 긴 글 자동 이어쓰기 (잘리면 끝까지 이어붙임)
@@ -1226,6 +1260,9 @@ async function runTask(staff, taskPrompt) {
       if (e.message && e.message.startsWith('rate_limit:')) {
         const waitSecs = parseInt(e.message.split(':')[1], 10) || 60;
         await sleep((waitSecs + 2) * 1000);
+      } else if (isTransient(e.message) && attempt < MAX_ATTEMPTS) {
+        // 네트워크 일시 오류 → 잠시 후 통째로 재시도
+        await sleep(3000 + attempt * 1500);
       } else {
         taskResults[staff.id] = '오류: ' + e.message;
         taskStatus[staff.id] = 'error';
