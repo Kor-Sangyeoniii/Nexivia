@@ -287,6 +287,7 @@ input,textarea,select{font-family:inherit;font-size:14px;outline:none}
     <div class="logo-icon" style="width:28px;height:28px;border-radius:7px;background:#00e5ff15;border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px">⚡</div>
     <div><div class="logo">NEXIVA</div><div class="logo-sub">AI COMPANY</div></div>
     <div style="display:flex;gap:7px;margin-left:auto">
+      <button class="btn btn-purple" style="padding:5px 11px;font-size:11px" onclick="openImageStudio()">🖼️ 이미지</button>
       <button class="btn btn-yellow" style="padding:5px 11px;font-size:11px" onclick="openQueueModal()" id="queueBtn">🗂️ 작업큐</button>
       <button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="openManage()">👥 직원관리</button>
       <button class="btn btn-green" style="padding:5px 11px;font-size:11px" onclick="openMcpCenter()">🔌 연동(MCP)</button>
@@ -2282,6 +2283,145 @@ function downloadDesignPNG() {
   };
   img.onerror = function() { URL.revokeObjectURL(url); alert('PNG 변환 실패 — SVG로 저장 후 사용해주세요'); };
   img.src = url;
+}
+
+// ═══════════════════════════════════════════════
+//  🖼️ 콘텐츠 이미지 스튜디오 (인스타·블로그·카드뉴스)
+// ═══════════════════════════════════════════════
+const IMG_PRESETS = {
+  insta_feed:  { label:'📷 인스타 피드', w:1080, h:1080, hint:'정사각형 1장', multi:false },
+  insta_story: { label:'📱 스토리/릴스 커버', w:1080, h:1920, hint:'세로 풀스크린', multi:false },
+  blog_thumb:  { label:'📝 블로그 썸네일', w:1280, h:720, hint:'가로 와이드', multi:false },
+  cardnews:    { label:'🗂️ 카드뉴스 (인스타 캐러셀)', w:1080, h:1080, hint:'여러 장', multi:true },
+};
+let studioSvgs = [];
+
+function openImageStudio() {
+  const presetOpts = Object.entries(IMG_PRESETS).map(([k,p]) => `<option value="${k}">${p.label} — ${p.w}×${p.h} (${p.hint})</option>`).join('');
+  openModal('imgStudio', '🖼️ 콘텐츠 이미지 스튜디오', `
+    <div style="background:#a78bfa10;border:1px solid #a78bfa33;border-radius:10px;padding:11px;margin-bottom:14px;font-size:11px;color:#a78bfa;line-height:1.6">
+      한채원이 인스타·블로그에 <b>바로 올릴 이미지</b>를 그려드려요. PNG로 저장해서 업로드하세요.
+    </div>
+    <label class="form-label">규격 선택</label>
+    <select id="img-preset" class="form-input" style="margin-bottom:10px" onchange="toggleCardCount()">${presetOpts}</select>
+    <div id="cardCountRow" style="display:none;margin-bottom:10px">
+      <label class="form-label">카드 장수</label>
+      <select id="img-slides" class="form-input">
+        <option value="3">3장</option><option value="5" selected>5장</option><option value="7">7장</option>
+      </select>
+    </div>
+    <label class="form-label">주제 / 내용</label>
+    <textarea id="img-topic" class="form-textarea" placeholder="예: 직장인 AI 부업으로 월 100만원 버는 법 / 우리 신상품 소개" style="min-height:70px;margin-bottom:6px"></textarea>
+    <label class="form-label" style="margin-top:4px">톤 (선택)</label>
+    <input id="img-tone" class="form-input" placeholder="예: 미니멀 모던 / 따뜻한 파스텔 / 강렬한 임팩트" style="margin-bottom:12px"/>
+    <button class="btn btn-purple" style="width:100%" onclick="generateStudioImages()">▶️ 이미지 생성</button>
+    <div id="studioOut" style="margin-top:14px"></div>
+  `, [{label:'닫기', cls:'btn-accent', action:'closeModal()'}]);
+}
+
+function toggleCardCount() {
+  const k = document.getElementById('img-preset').value;
+  const row = document.getElementById('cardCountRow');
+  if (row) row.style.display = IMG_PRESETS[k].multi ? 'block' : 'none';
+}
+
+async function generateStudioImages() {
+  const out = document.getElementById('studioOut');
+  const setOut = (h) => { if (out) out.innerHTML = h; };
+  const key = document.getElementById('img-preset').value;
+  const preset = IMG_PRESETS[key];
+  const topic = (document.getElementById('img-topic').value || '').trim();
+  const tone = (document.getElementById('img-tone').value || '').trim();
+  if (!topic) { alert('주제/내용을 입력해주세요'); return; }
+  const designer = getStaff('designer') || { prompt:'당신은 디자이너입니다.', name:'한채원' };
+  const slides = preset.multi ? (parseInt(document.getElementById('img-slides').value,10) || 5) : 1;
+
+  setOut('<div style="text-align:center;color:var(--muted);font-size:12px;padding:14px">🎨 한채원이 그리는 중... (카드 여러 장은 1~2분 걸려요)</div>');
+  studioSvgs = [];
+
+  const sizeRule = `viewBox="0 0 ${preset.w} ${preset.h}", width/height 명시`;
+  const toneRule = tone ? `톤/분위기: ${tone}. ` : '';
+
+  try {
+    let prompt;
+    if (preset.multi) {
+      prompt = `"${topic}" 주제로 인스타그램 카드뉴스 ${slides}장을 만들어줘. ${toneRule}
+각 카드는 ${preset.w}×${preset.h} 정사각형 SVG.
+- 1장: 강력한 후킹 표지(큰 제목)
+- 중간 장들: 핵심 내용 1개씩, 큰 글씨로 읽기 쉽게
+- 마지막 장: 행동 유도(팔로우/저장/링크) CTA
+규칙: 각 카드를 완전한 <svg ...>~</svg>로, ${sizeRule}. 카드 사이는 줄바꿈으로 구분. 외부폰트/이미지 금지, font-family는 'sans-serif'만. 설명·마크다운 금지, SVG 코드들만 연속 출력.`;
+    } else {
+      const kindDesc = key==='blog_thumb' ? '블로그 대표 썸네일(클릭 유도)' : key==='insta_story' ? '인스타 스토리/릴스 커버' : '인스타 피드 게시물';
+      prompt = `"${topic}" 주제의 ${kindDesc} 이미지를 ${preset.w}×${preset.h} SVG로 만들어줘. ${toneRule}
+큰 제목 + 핵심 문구 + 시선 끄는 디자인(그라데이션·도형·강조). ${sizeRule}.
+규칙: <svg ...>~</svg> 코드만, 외부폰트/이미지 금지, font-family 'sans-serif'만, 설명·마크다운·코드펜스 금지.`;
+    }
+
+    const raw = await callClaude(
+      designer.prompt + '\n너는 지금 프리미엄 SVG 콘텐츠 디자이너로 동작한다.',
+      [{role:'user', content: prompt}]
+    );
+    const svgs = raw.match(/<svg[\s\S]*?<\/svg>/gi) || [];
+    if (!svgs.length) throw new Error('SVG를 받지 못했어요. 다시 시도해주세요.');
+    studioSvgs = svgs;
+
+    setOut(svgs.map((svg, i) => `
+      <div style="background:var(--card);border:1px solid var(--border);border-radius:10px;padding:10px;margin-bottom:10px">
+        <div style="font-size:11px;font-weight:700;margin-bottom:6px">${preset.multi ? '카드 ' + (i+1) : '이미지'}</div>
+        <div style="width:100%;max-width:${preset.w>preset.h?'320':'240'}px;margin:0 auto;border-radius:6px;overflow:hidden;background:#000">${svg.replace(/<svg /,'<svg style="width:100%;height:auto;display:block" ')}</div>
+        <div style="display:flex;gap:6px;margin-top:8px;justify-content:center;flex-wrap:wrap">
+          <button class="btn btn-green" style="padding:5px 11px;font-size:11px" onclick="studioDownloadPNG(${i})">⬇️ PNG</button>
+          <button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="studioDownloadSVG(${i})">⬇️ SVG</button>
+        </div>
+      </div>
+    `).join('') + (svgs.length > 1 ? `<button class="btn btn-purple" style="width:100%;margin-top:4px" onclick="studioDownloadAll()">⬇️ 전체 PNG 한번에 저장</button>` : ''));
+  } catch(e) {
+    if (e.message && e.message.startsWith('rate_limit:')) setOut('<div style="color:var(--yellow);font-size:12px;text-align:center;padding:10px">😴 토큰 재생성 중 — 잠시 후 다시 눌러주세요</div>');
+    else setOut(`<div style="color:var(--red);font-size:12px;text-align:center;padding:10px">❌ ${e.message}</div>`);
+  }
+}
+
+// SVG 문자열 → PNG 파일 저장 (범용)
+function svgToPng(svgStr, filename) {
+  let w = 1080, h = 1080;
+  const vb = svgStr.match(/viewBox=["']\s*[\d.]+\s+[\d.]+\s+([\d.]+)\s+([\d.]+)/i);
+  if (vb) { w = Math.round(parseFloat(vb[1])); h = Math.round(parseFloat(vb[2])); }
+  const blob = new Blob([svgStr], {type:'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const img = new Image();
+  img.onload = function() {
+    const scale = 2;
+    const c = document.createElement('canvas');
+    c.width = w*scale; c.height = h*scale;
+    const ctx = c.getContext('2d');
+    ctx.fillStyle = '#ffffff'; ctx.fillRect(0,0,c.width,c.height);
+    ctx.drawImage(img, 0, 0, c.width, c.height);
+    URL.revokeObjectURL(url);
+    c.toBlob(function(b) {
+      const u = URL.createObjectURL(b);
+      const a = document.createElement('a');
+      a.href = u; a.download = filename + '.png';
+      document.body.appendChild(a); a.click(); a.remove();
+      setTimeout(()=>URL.revokeObjectURL(u), 1000);
+    }, 'image/png');
+  };
+  img.onerror = function(){ URL.revokeObjectURL(url); alert('PNG 변환 실패'); };
+  img.src = url;
+}
+
+function studioDownloadPNG(i) { if (studioSvgs[i]) svgToPng(studioSvgs[i], 'nexiva_image_' + (i+1)); }
+function studioDownloadSVG(i) {
+  if (!studioSvgs[i]) return;
+  const blob = new Blob([studioSvgs[i]], {type:'image/svg+xml;charset=utf-8'});
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url; a.download = 'nexiva_image_' + (i+1) + '.svg';
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(url), 1000);
+}
+function studioDownloadAll() {
+  studioSvgs.forEach((svg, i) => setTimeout(() => svgToPng(svg, 'nexiva_card_' + (i+1)), i * 600));
 }
 
 // 검토 화면에서 Suno 프롬프트 추출 (복사용)
