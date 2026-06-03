@@ -1666,10 +1666,28 @@ async function sendStaffChat(staffId) {
   inp.value = '';
 
   staffChatHistory[staffId].push({role:'user', text: msg});
+  refreshStaffChatUI(staffId, s, false);
+
+  // ★ "진행하자" 류 결정 → 회의실로 에스컬레이션
+  if (/진행하|진행시|진행할|진행해|진행 ?ㄱ|회의실|회의로|ㄱㄱ|고고|컨펌|확정|승인할|좋아 ?진행/i.test(msg)) {
+    escalateToMeeting(staffId);
+    return;
+  }
+
   staffChatLoading[staffId] = true;
   refreshStaffChatUI(staffId, s, true);
 
   taskStatus[staffId] = 'working'; renderOffice();
+
+  // ★ 평가 모드: 길게 작업하지 말고 기대효과만 간략 판단
+  const assessSys = s.prompt + `
+
+[대화 규칙 — 매우 중요]
+대표가 업무·아이디어를 제시하면, 절대 긴 작업물을 바로 만들지 마라.
+대신 그 일의 "기대효과가 있는지/없는지"를 핵심만 3~4문장으로 간략히 판단하라.
+- 수익성·실현 가능성·소요 대비 효과 관점에서 솔직하게
+- 마지막 줄에 반드시 결론: "👍 진행할 가치 있음" 또는 "👎 비추천" 중 하나
+대표가 "진행하자"라고 하면 시스템이 회의실로 넘긴다(너는 신경 쓰지 마라).`;
 
   const buildMessages = () => {
     const allMsgs = staffChatHistory[staffId]
@@ -1690,7 +1708,7 @@ async function sendStaffChat(staffId) {
     try {
       taskStatus[staffId] = 'working'; renderOffice();
       // 스트리밍: 글자 올 때마다 마지막 슬롯 업데이트
-      const result = await callClaudeStream(s.prompt, buildMessages(), staffId, (partial) => {
+      const result = await callClaudeStream(assessSys, buildMessages(), staffId, (partial) => {
         const hist = staffChatHistory[staffId];
         if (hist.length && hist[hist.length-1].streaming) {
           hist[hist.length-1].text = partial;
@@ -1731,6 +1749,38 @@ async function sendStaffChat(staffId) {
   staffChatLoading[staffId] = false;
   renderOffice();
   refreshStaffChatUI(staffId, s, false);
+}
+
+// ★ 직원 채팅 → 회의실로 가져가기 (필요 팀원 초대)
+async function escalateToMeeting(staffId) {
+  const s = getStaff(staffId);
+  if (!s) return;
+  staffChatHistory[staffId].push({ role:'ai', text:'좋습니다 대표님! 🏛️ 회의실로 가져가 필요한 팀원들과 진행하겠습니다. 잠시만요...' });
+  refreshStaffChatUI(staffId, s, false);
+
+  // 지금까지의 논의를 프로젝트로 정리
+  const convo = staffChatHistory[staffId].filter(m => m.role === 'user').map(m => m.text).join('\n');
+  let project = null;
+  try {
+    const raw = await callClaude(
+      '너는 기획 보조다. 대화를 판매 가능한 프로젝트로 한 번에 정리한다.',
+      [{ role:'user', content:`다음 논의 내용을 하나의 프로젝트로 정리해서 JSON만 출력:\n"""${convo}"""\n\n{"name":"구체적 상품/프로젝트명","platform":"크몽/Gumroad/Etsy/BeatStars/유튜브/네이버 중 적합","revenue":"월 예상수익","plan":"한 줄 설명","dept":"${s.dept}"}` }],
+      staffId
+    );
+    const m = raw.replace(/```json|```/g, '').trim().match(/\{[\s\S]*\}/);
+    if (m) project = JSON.parse(m[0]);
+  } catch (e) {}
+  if (!project || !project.name) {
+    project = { name: (convo.split('\n')[0] || s.role + ' 업무').slice(0, 50), platform: '크몽', revenue: '-', plan: convo.slice(0, 80), dept: s.dept };
+  }
+
+  currentProject = project;
+  selectedIdea = project;
+  meetingHistory = [];
+  wfState = 'meeting';
+  closeModal();          // 직원 채팅 닫기
+  renderAll();
+  openMeetingModal();    // 회의실 입장 (planner·cfo·해당팀 자동 초대)
 }
 
 function refreshStaffChatUI(staffId, s, loading) {
