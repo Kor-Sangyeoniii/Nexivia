@@ -287,6 +287,7 @@ input,textarea,select{font-family:inherit;font-size:14px;outline:none}
     <div class="logo-icon" style="width:28px;height:28px;border-radius:7px;background:#00e5ff15;border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px">⚡</div>
     <div><div class="logo">NEXIVA</div><div class="logo-sub">AI COMPANY</div></div>
     <div style="display:flex;gap:7px;margin-left:auto">
+      <button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="openBriefModal()" id="briefBtn">📰 브리핑</button>
       <button class="btn btn-purple" style="padding:5px 11px;font-size:11px" onclick="openImageStudio()">🖼️ 이미지</button>
       <button class="btn btn-yellow" style="padding:5px 11px;font-size:11px" onclick="openQueueModal()" id="queueBtn">🗂️ 작업큐</button>
       <button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="openManage()">👥 직원관리</button>
@@ -360,6 +361,11 @@ let wfState = 'idle'; // idle | planning | meeting | working | reviewing | revis
 let taskQueue = JSON.parse(localStorage.getItem('nx_queue') || '[]');
 let queueRunning = false;
 function saveQueue() { localStorage.setItem('nx_queue', JSON.stringify(taskQueue)); }
+// ── 수익 장부 (직접 기록) + 아침 브리핑
+let revenueLedger = JSON.parse(localStorage.getItem('nx_ledger') || '[]'); // [{date,item,source,amount,memo}]
+function saveLedger() { localStorage.setItem('nx_ledger', JSON.stringify(revenueLedger)); cloudPush(); }
+let cloudBrief = null;          // 엔진이 보낸 오늘의 시장 브리핑
+let briefSeenDate = localStorage.getItem('nx_brief_seen') || '';
 let currentProject = null;
 let currentIdeas = [];
 let selectedIdea = null;
@@ -407,9 +413,11 @@ function cloudPush() {
       done: localStorage.getItem('nx_done'),
       mcp: localStorage.getItem('nx_mcp'),
       suno: localStorage.getItem('nx_suno'),
+      ledger: localStorage.getItem('nx_ledger'),
       ts: Date.now()
     };
-    try { await fetch(cloudUrl(), { method:'PUT', body: JSON.stringify(payload) }); }
+    // PATCH = 부분 병합 → 엔진이 넣은 brief 등 다른 필드는 보존됨
+    try { await fetch(cloudUrl(), { method:'PATCH', body: JSON.stringify(payload) }); }
     catch(e) {}
   }, 700);
 }
@@ -422,6 +430,8 @@ function applyCloudData(d) {
     if (d.done != null) { localStorage.setItem('nx_done', d.done); completedProjects = JSON.parse(d.done); }
     if (d.mcp != null) { localStorage.setItem('nx_mcp', d.mcp); mcpServers = JSON.parse(d.mcp); }
     if (d.suno != null) { localStorage.setItem('nx_suno', d.suno); sunoCfg = JSON.parse(d.suno); }
+    if (d.ledger != null) { localStorage.setItem('nx_ledger', d.ledger); try { revenueLedger = JSON.parse(d.ledger); } catch(e){} }
+    if (d.brief) { handleIncomingBrief(d.brief); }
     renderAll();
   } catch(e) {}
   setTimeout(() => { cloudApplying = false; }, 150);
@@ -1846,9 +1856,10 @@ async function cloudPushNow() {
     done: localStorage.getItem('nx_done'),
     mcp: localStorage.getItem('nx_mcp'),
     suno: localStorage.getItem('nx_suno'),
+    ledger: localStorage.getItem('nx_ledger'),
     ts: Date.now()
   };
-  try { await fetch(cloudUrl(), { method:'PUT', body: JSON.stringify(payload) }); } catch(e) {}
+  try { await fetch(cloudUrl(), { method:'PATCH', body: JSON.stringify(payload) }); } catch(e) {}
 }
 
 function exportData() {
@@ -1857,7 +1868,8 @@ function exportData() {
     staff: localStorage.getItem('nx_staff'),
     done: localStorage.getItem('nx_done'),
     mcp: localStorage.getItem('nx_mcp'),
-    suno: localStorage.getItem('nx_suno')
+    suno: localStorage.getItem('nx_suno'),
+    ledger: localStorage.getItem('nx_ledger')
   };
   const blob = new Blob([JSON.stringify(data, null, 2)], {type:'application/json'});
   const url = URL.createObjectURL(blob);
@@ -1882,6 +1894,7 @@ function importData(input) {
       if (data.done != null) localStorage.setItem('nx_done', data.done);
       if (data.mcp != null) localStorage.setItem('nx_mcp', data.mcp);
       if (data.suno != null) localStorage.setItem('nx_suno', data.suno);
+      if (data.ledger != null) localStorage.setItem('nx_ledger', data.ledger);
       alert('✅ 복원 완료! 앱을 새로고침합니다.');
       location.reload();
     } catch(err) {
@@ -1889,6 +1902,71 @@ function importData(input) {
     }
   };
   reader.readAsText(file);
+}
+
+// ═══════════════════════════════════════════════
+//  📰 아침 시장 브리핑 (엔진 웹검색 결과)
+// ═══════════════════════════════════════════════
+function handleIncomingBrief(brief) {
+  cloudBrief = brief;
+  updateBriefBadge();
+  // 오늘 처음 보는 새 브리핑이면 알림
+  if (brief && brief.date && brief.date !== briefSeenDate) {
+    showNotif('📰 오늘의 시장 브리핑', (brief.summary || '새 기회를 찾았어요') + '\n[📰 브리핑]에서 확인하세요.', [
+      {label:'📰 보기', action:'closeNotif();openBriefModal()'}
+    ]);
+  }
+}
+
+function updateBriefBadge() {
+  const btn = document.getElementById('briefBtn');
+  if (!btn) return;
+  const isNew = cloudBrief && cloudBrief.date && cloudBrief.date !== briefSeenDate;
+  btn.textContent = isNew ? '📰 브리핑 🔴' : '📰 브리핑';
+}
+
+function openBriefModal() {
+  if (cloudBrief && cloudBrief.date) {
+    briefSeenDate = cloudBrief.date;
+    localStorage.setItem('nx_brief_seen', briefSeenDate);
+    updateBriefBadge();
+  }
+  if (!cloudBrief || !cloudBrief.items || !cloudBrief.items.length) {
+    openModal('briefModal', '📰 오늘의 시장 브리핑', `
+      <div style="text-align:center;padding:36px 18px;color:var(--muted)">
+        <div style="font-size:34px;margin-bottom:10px">📰</div>
+        <div style="font-size:13px;line-height:1.7">아직 도착한 브리핑이 없어요.<br>매일 아침 기획팀이 웹을 뒤져<br><b>월 300만원 이상</b> 가능성 있는 기회만 보고해요.<br><span style="font-size:11px">(특별한 게 없는 날은 조용히 넘어가요)</span></div>
+      </div>`, [{label:'닫기', cls:'btn-accent', action:'closeModal()'}]);
+    return;
+  }
+  const items = cloudBrief.items.map((it, i) => `
+    <div style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:11px;padding:13px;margin-bottom:10px">
+      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:6px">
+        <div style="font-weight:700;font-size:14px;color:var(--green)">${i+1}. ${it.title}</div>
+        <div style="font-size:10px;color:var(--accent);white-space:nowrap;background:#00e5ff10;border:1px solid #00e5ff33;border-radius:10px;padding:2px 8px">${it.potential||''}</div>
+      </div>
+      ${it.trend?`<div style="font-size:11px;color:var(--text);line-height:1.6;margin-bottom:5px"><b style="color:var(--muted)">📈 트렌드:</b> ${it.trend}</div>`:''}
+      ${it.why_now?`<div style="font-size:11px;color:var(--text);line-height:1.6;margin-bottom:5px"><b style="color:var(--muted)">⏰ 왜 지금:</b> ${it.why_now}</div>`:''}
+      ${it.how_to_monetize?`<div style="font-size:11px;color:var(--text);line-height:1.6"><b style="color:var(--muted)">💰 수익화:</b> ${it.how_to_monetize}</div>`:''}
+      <button class="btn btn-yellow" style="padding:4px 10px;font-size:10px;margin-top:8px" onclick="briefToQueue(${i})">🗂️ 이 아이디어로 작업 만들기</button>
+    </div>`).join('');
+  openModal('briefModal', '📰 오늘의 시장 브리핑', `
+    <div style="background:#10b98110;border:1px solid #10b98133;border-radius:10px;padding:11px;margin-bottom:14px">
+      <div style="font-size:10px;color:var(--muted);margin-bottom:3px">${cloudBrief.generatedAt||cloudBrief.date} · 기획팀 박준서</div>
+      <div style="font-size:12px;color:var(--green);font-weight:700;line-height:1.5">${cloudBrief.summary||''}</div>
+    </div>
+    ${items}
+    <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:6px">월 300만원 이상 가능성 있는 기회만 선별했어요</div>
+  `, [{label:'닫기', cls:'btn-accent', action:'closeModal()'}]);
+}
+
+function briefToQueue(i) {
+  const it = cloudBrief && cloudBrief.items && cloudBrief.items[i];
+  if (!it) return;
+  const planner = getStaff('planner') || STAFF[0];
+  enqueueJob(planner.id, `다음 시장 기회를 우리 사업으로 구체화해줘:\n제목: ${it.title}\n트렌드: ${it.trend||''}\n수익화 방향: ${it.how_to_monetize||''}\n\n구체적 상품 기획안 + 실행 단계 + 첫 매출까지 로드맵을 작성해줘.`, '브리핑: ' + it.title);
+  closeModal();
+  showNotif('🗂️ 작업 추가됨', `"${it.title}" 기획을 작업큐에 넣었어요.`, [], true);
 }
 
 // ═══════════════════════════════════════════════
@@ -1913,13 +1991,13 @@ function openRevenue() {
 
   // 전체 합계
   let totalAll = 0, totalToday = 0, totalMonth = 0;
-  completedProjects.forEach(p => {
-    (p.revenue||[]).forEach(r => {
-      totalAll += r.amount||0;
-      if (r.date === today) totalToday += r.amount||0;
-      if ((r.date||'').slice(0,7) === month) totalMonth += r.amount||0;
-    });
-  });
+  const acc = (date, amount) => {
+    totalAll += amount||0;
+    if (date === today) totalToday += amount||0;
+    if ((date||'').slice(0,7) === month) totalMonth += amount||0;
+  };
+  completedProjects.forEach(p => (p.revenue||[]).forEach(r => acc(r.date, r.amount)));
+  revenueLedger.forEach(r => acc(r.date, r.amount));  // 직접 기록한 수익도 합산
 
   const goalPct = Math.min(100, Math.round(totalMonth / MONTHLY_GOAL * 100));
 
@@ -1959,9 +2037,50 @@ function openRevenue() {
     </div>
     <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:10px">판매 중인 상품 (${live.length})</div>
     ${liveHtml}
+
+    <div style="font-size:12px;font-weight:700;color:var(--muted);letter-spacing:1px;margin:18px 0 10px">📒 수익목록 — 직접 기록</div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px;margin-bottom:12px">
+      <div style="display:flex;gap:6px;margin-bottom:7px">
+        <input id="led-date" type="date" class="form-input" value="${today}" style="flex:1;padding:7px 9px;font-size:12px"/>
+        <input id="led-amount" type="number" inputmode="numeric" class="form-input" placeholder="금액(원)" style="width:110px;padding:7px 9px;font-size:12px"/>
+      </div>
+      <input id="led-item" class="form-input" placeholder="항목 (예: AI 부업 가이드)" style="margin-bottom:7px;padding:7px 9px;font-size:12px"/>
+      <div style="display:flex;gap:6px">
+        <input id="led-source" class="form-input" placeholder="어디서 (크몽/Gumroad...)" style="flex:1;padding:7px 9px;font-size:12px"/>
+        <button class="btn btn-green" style="padding:7px 14px;font-size:12px" onclick="addLedger()">+ 기록</button>
+      </div>
+    </div>
+    ${revenueLedger.length ? revenueLedger.slice(0,40).map((r,i) => `
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;background:var(--card);border:1px solid var(--border);border-radius:8px;padding:8px 11px;margin-bottom:6px">
+        <div style="min-width:0;flex:1">
+          <div style="font-size:12px;font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.item||'(항목 없음)'}</div>
+          <div style="font-size:10px;color:var(--muted)">${r.date} · ${r.source||'-'}${r.memo?' · '+r.memo:''}</div>
+        </div>
+        <div style="font-size:13px;font-weight:800;color:var(--green);white-space:nowrap">${won(r.amount)}</div>
+        <button onclick="delLedger(${i})" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:13px">✕</button>
+      </div>`).join('') : '<div style="text-align:center;color:var(--muted);font-size:11px;padding:10px">아직 기록이 없어요. 수익이 생기면 여기에 적어두세요.</div>'}
   `, [
     {label:'닫기', cls:'btn-accent', action:'closeModal()'},
   ]);
+}
+
+function addLedger() {
+  const date = document.getElementById('led-date').value || todayStr();
+  const amount = parseInt((document.getElementById('led-amount').value||'').replace(/[^\d]/g,''), 10);
+  const item = (document.getElementById('led-item').value||'').trim();
+  const source = (document.getElementById('led-source').value||'').trim();
+  if (!amount || amount <= 0) { alert('금액을 입력해주세요'); return; }
+  revenueLedger.unshift({ date, item, source, amount, memo:'' });
+  revenueLedger = revenueLedger.slice(0, 200);
+  saveLedger();
+  openRevenue();
+  showNotif('📒 기록 완료', `${won(amount)} 기록했어요.`, [], true);
+}
+
+function delLedger(i) {
+  revenueLedger.splice(i, 1);
+  saveLedger();
+  openRevenue();
 }
 
 function addRevenue(idx) {
@@ -2871,6 +2990,7 @@ function boot() {
   setTimeout(startSpeechTimers, 2000);
   if (cloudCfg.enabled && cloudCfg.dbUrl && cloudCfg.code) cloudConnect();
   updateQueueBadge();
+  updateBriefBadge();
   // 새로고침해도 대기 중이던 작업 자동 재개
   if (taskQueue.some(j => j.status === 'pending' || j.status === 'running')) {
     taskQueue.forEach(j => { if (j.status === 'running') j.status = 'pending'; }); // 중단됐던 건 대기로
