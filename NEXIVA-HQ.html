@@ -387,6 +387,16 @@ let speechActive = {};
 let completedProjects = JSON.parse(localStorage.getItem('nx_done') || '[]');
 let meetingHistory = [];
 let meetingLoading = false;
+let meetingInvited = [];   // 대표가 추가 초대한 팀원 id
+let _meetingProceeding = false;
+// 회의 참석자 = 기획팀장 + CFO + 해당팀 + 추가 초대
+function meetingAttendees() {
+  if (!currentProject) return [];
+  const ids = new Set();
+  STAFF.forEach(s => { if (['planner','cfo'].includes(s.id) || s.dept === currentProject.dept) ids.add(s.id); });
+  meetingInvited.forEach(id => ids.add(id));
+  return STAFF.filter(s => ids.has(s.id));
+}
 let staffEditId = null;
 let editEmoji = '🤖';
 let editColor = '#00e5ff';
@@ -896,6 +906,7 @@ function confirmIdeaAndMeet() {
   currentProject = selectedIdea;
   closeModal();
   meetingHistory = [];
+  meetingInvited = [];
   openMeetingModal();
 }
 
@@ -905,13 +916,22 @@ function confirmIdeaAndMeet() {
 function openMeetingModal() {
   if (!currentProject) return;
 
-  // 참석자: 기획팀장, CFO, 해당 dept 담당자
-  const attendees = STAFF.filter(s => ['planner','cfo'].includes(s.id) || s.dept === currentProject.dept);
+  const attendees = meetingAttendees();
   const atHtml = attendees.map(s => `
     <div style="display:flex;align-items:center;gap:6px;padding:4px 8px;background:${s.color}12;border:1px solid ${s.color}30;border-radius:8px">
       <span>${s.emoji}</span><span style="font-size:11px;font-weight:700;color:${s.color}">${s.name}</span>
     </div>
   `).join('');
+
+  // 초대 가능한 (아직 참석 안 한) 직원
+  const notIn = STAFF.filter(s => !attendees.find(a => a.id === s.id));
+  const inviteHtml = notIn.length ? `
+    <div style="display:flex;gap:6px;margin-bottom:14px">
+      <select id="inviteSel" class="form-input" style="flex:1;padding:7px 9px;font-size:12px">
+        ${notIn.map(s => `<option value="${s.id}">${s.emoji} ${s.name} (${s.role})</option>`).join('')}
+      </select>
+      <button class="btn btn-accent" style="padding:7px 12px;font-size:12px" onclick="inviteToMeeting()">+ 초대</button>
+    </div>` : '';
 
   openModal('meetingModal', '🏛️ 회의실', `
     <div style="background:#0a1220;border:1px solid #1a2e50;border-radius:10px;padding:12px;margin-bottom:14px">
@@ -922,18 +942,52 @@ function openMeetingModal() {
         <span class="tag" style="background:#10b98115;color:#10b981">💰 ${currentProject.revenue}</span>
       </div>
     </div>
-    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">참석자</div>
-    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:14px">${atHtml}</div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:8px">참석자 (${attendees.length})</div>
+    <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${atHtml}</div>
+    ${inviteHtml}
     <div class="chat-box" id="meetChat" style="min-height:140px;max-height:48vh;overflow-y:auto"></div>
+    <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:8px">💡 회의를 닫고 나가면 자동으로 제작이 시작돼요</div>
   `, [
     {label:'⚙️ 업무 진행', cls:'btn-green', action:'confirmWork()', primary:true},
     {label:'대화하기', cls:'btn-accent', action:'openMeetSendRow()'},
-    {label:'닫기', cls:'btn-red', action:'closeModal()'},
+    {label:'나가기(제작시작)', cls:'btn-red', action:'leaveMeeting()'},
   ]);
 
   // 자동 브리핑
   if (meetingHistory.length === 0) autoMeetingBrief(attendees);
   else renderMeetChat();
+}
+
+// 회의에 팀원 추가 초대 → 짧게 인사 발언
+async function inviteToMeeting() {
+  const sel = document.getElementById('inviteSel');
+  if (!sel) return;
+  const id = sel.value;
+  if (!meetingInvited.includes(id)) meetingInvited.push(id);
+  const s = getStaff(id);
+  openMeetingModal();  // 참석자 목록 갱신
+  if (s) {
+    addMeetMsg(null, `➕ ${s.name}(${s.role}) 님을 회의에 초대했습니다.`, null);
+    try {
+      taskStatus[id] = 'working'; renderOffice();
+      const intro = await callClaude(s.prompt + `\n"${currentProject.name}" 프로젝트 회의에 방금 합류했다. 내 전문 분야 관점에서 한마디 의견을 2문장으로.`,
+        [{role:'user', content:`"${currentProject.name}" 프로젝트에 대한 첫 의견 주세요.`}], id);
+      addMeetMsg(s, intro, null);
+      taskStatus[id] = 'done'; renderOffice();
+    } catch(e) {}
+  }
+}
+
+// 회의 나가기 = 자동 제작 시작
+function leaveMeeting() {
+  if (wfState === 'meeting' && currentProject && !_meetingProceeding) {
+    _meetingProceeding = true;
+    showNotif('🏛️ 회의 종료', `"${currentProject.name}" 제작을 시작합니다.`, [], true);
+    confirmWork();   // closeModal + 제작 시작
+    _meetingProceeding = false;
+  } else {
+    closeModal();
+  }
 }
 
 async function autoMeetingBrief(attendees) {
@@ -1015,7 +1069,7 @@ async function sendMeetMsg() {
   meetingLoading = true;
   renderMeetChat();
 
-  const attendees = STAFF.filter(s => ['planner','cfo'].includes(s.id) || s.dept === currentProject.dept);
+  const attendees = meetingAttendees();
   const responder = attendees[Math.floor(Math.random() * attendees.length)];
   if (!responder) { meetingLoading=false; return; }
 
@@ -1045,13 +1099,17 @@ async function sendMeetMsg() {
 // ═══════════════════════════════════════════════
 function confirmWork() {
   if (!currentProject) return;
+  wfState = 'working';   // ★ closeModal의 자동진행 재발동 방지 위해 먼저 변경
   closeModal();
-  wfState = 'working';
   taskResults = {};
 
-  // 담당팀 직원들 + 편집장
-  const workers = STAFF.filter(s => s.dept === currentProject.dept || s.id === 'editor');
+  // 담당팀 + 편집장 + 회의에 초대된 팀원
+  const ids = new Set(['editor']);
+  STAFF.forEach(s => { if (s.dept === currentProject.dept) ids.add(s.id); });
+  meetingInvited.forEach(id => ids.add(id));
+  const workers = STAFF.filter(s => ids.has(s.id));
   workers.forEach(s => { taskStatus[s.id] = 'idle'; });
+  meetingInvited = [];   // 초대 목록 초기화 (다음 회의용)
   renderAll();
 
   // 병렬 제작 실행
@@ -1114,16 +1172,19 @@ async function runProductionPipeline(workers) {
 포함: 제목 후보, 썸네일 문구·디자인 지시, 전체 스크립트(컷별), AI 영상도구(Runway/Pika) 프롬프트(코드블록), 업로드 메타데이터·해시태그.\n\n${allCtx}`;
     } else {
       finalInstruction = `프로젝트: "${currentProject.name}" (${currentProject.platform} 판매용).
-아래 팀원 결과물을 취합하여 **그대로 판매 가능한 최종 완성본**을 만들어주세요.
+아래 팀원 결과물을 취합하여 **PDF로 바로 팔 수 있는 완성본**을 만들어주세요.
 
-[취합 기준]
-- 리서치·콘텐츠·디자인 기획을 하나의 매끄러운 완성 문서로 통합
-- 중복 제거, 흐름 정리, 빠진 부분 직접 보완
-- 맨 앞에 [상품 소개글]: 제목 후보 3개 + 한 줄 후킹 + 판매 설명문(구매전환용) 추가
-- 본문은 마크다운으로 구조화 (#, ##, ###, 목록, 표)
-- 분량 충분히, 상위 1% 판매자 수준, 내용 축약·생략 절대 금지
+[중요 — 천편일률 금지]
+- "이 상품"에만 맞는 고유한 목차/구조를 새로 설계하라. 다른 상품에도 통할 법한 일반론·뻔한 틀 금지.
+- 이 주제의 진짜 전문가만 아는 구체적 노하우·수치·실제 사례·실수담을 넣어라.
+- 바로 따라 할 수 있는 실전 템플릿/예시/체크리스트를 최소 3개 이상 포함.
 
-먼저 [상품 소개글] 섹션, 그 다음 [본문 완성본] 순서로.\n\n${allCtx}`;
+[형식]
+- 맨 앞 [상품 소개글]: 제목 후보 3개 + 한 줄 후킹 + 구매전환 설명문
+- 본문: 이 상품에 최적화된 챕터 구성, 마크다운(#, ##, ###, 표, 목록), 충분한 분량
+- 상위 1% 수준, 축약·생략 절대 금지. (길어서 잘리면 시스템이 이어서 완성함)
+
+먼저 [상품 소개글], 그 다음 [본문 완성본] 순서로.\n\n${allCtx}`;
     }
     await runTask(editor, finalInstruction);
   }
@@ -1809,6 +1870,7 @@ async function escalateToMeeting(staffId) {
   currentProject = project;
   selectedIdea = project;
   meetingHistory = [];
+  meetingInvited = [];
   wfState = 'meeting';
   closeModal();          // 직원 채팅 닫기
   renderAll();
@@ -2870,6 +2932,11 @@ function openModal(id, title, bodyHtml, buttons) {
 }
 
 function closeModal() {
+  // 회의실을 X/바깥클릭으로 닫아도 자동 제작 시작
+  if (activeModal === 'meetingModal' && wfState === 'meeting' && currentProject && !_meetingProceeding) {
+    leaveMeeting();
+    return;
+  }
   if (activeModal) {
     const el = document.getElementById(activeModal);
     if (el) el.remove();
