@@ -287,6 +287,7 @@ input,textarea,select{font-family:inherit;font-size:14px;outline:none}
     <div class="logo-icon" style="width:28px;height:28px;border-radius:7px;background:#00e5ff15;border:1.5px solid var(--accent);display:flex;align-items:center;justify-content:center;font-size:13px">⚡</div>
     <div><div class="logo">NEXIVA</div><div class="logo-sub">AI COMPANY</div></div>
     <div style="display:flex;gap:7px;margin-left:auto">
+      <button class="btn btn-yellow" style="padding:5px 11px;font-size:11px" onclick="openQueueModal()" id="queueBtn">🗂️ 작업큐</button>
       <button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="openManage()">👥 직원관리</button>
       <button class="btn btn-green" style="padding:5px 11px;font-size:11px" onclick="openMcpCenter()">🔌 연동(MCP)</button>
       <button class="btn btn-green" style="padding:5px 11px;font-size:11px" onclick="openRevenue()">💰 매출</button>
@@ -354,6 +355,10 @@ const COLOR_LIST = ['#f59e0b','#00e5ff','#10b981','#ec4899','#8b5cf6','#a78bfa',
 let API_KEY = localStorage.getItem('nx_key') || '';
 let STAFF = loadStaff();
 let wfState = 'idle'; // idle | planning | meeting | working | reviewing | revising
+// ── 작업 큐 (순차 처리: 끝나자마자 다음 자동 시작)
+let taskQueue = JSON.parse(localStorage.getItem('nx_queue') || '[]');
+let queueRunning = false;
+function saveQueue() { localStorage.setItem('nx_queue', JSON.stringify(taskQueue)); }
 let currentProject = null;
 let currentIdeas = [];
 let selectedIdea = null;
@@ -2553,12 +2558,185 @@ function copyText(text) {
 }
 
 // ═══════════════════════════════════════════════
+//  작업 큐 — 순차 처리 (끝나자마자 다음 자동 시작)
+// ═══════════════════════════════════════════════
+function enqueueJob(staffId, prompt, label) {
+  const s = getStaff(staffId);
+  if (!s || !prompt) return;
+  taskQueue.push({
+    id: 'job_' + Date.now() + '_' + Math.floor(Math.random()*1000),
+    staffId, prompt,
+    label: label || (s.name + ' 업무'),
+    status: 'pending', result: '', time: ''
+  });
+  saveQueue();
+  updateQueueBadge();
+  processQueue(); // 이미 돌고 있으면 무시됨, 아니면 시작
+}
+
+async function processQueue() {
+  if (queueRunning) return;        // 이미 처리 중이면 중복 실행 방지
+  queueRunning = true;
+
+  while (true) {
+    const job = taskQueue.find(j => j.status === 'pending');
+    if (!job) break;               // 대기 작업 없음 → 종료
+
+    job.status = 'running';
+    saveQueue();
+    taskStatus[job.staffId] = 'working';
+    renderOffice(); refreshQueueModal(); updateQueueBadge();
+
+    const s = getStaff(job.staffId);
+    if (!s) { job.status = 'error'; job.result = '직원 없음'; saveQueue(); continue; }
+
+    // rate limit 자동 대기 후 재시도 (최대 10회)
+    let ok = false;
+    for (let attempt = 0; attempt < 10 && !ok; attempt++) {
+      try {
+        const result = await callClaudeStream(s.prompt, [{role:'user', content: job.prompt}], job.staffId, (partial) => {
+          streamBuf[job.staffId] = partial;
+          updateLivePanel(job.staffId, partial);
+        });
+        job.result = result;
+        job.status = 'done';
+        job.time = new Date().toLocaleTimeString('ko-KR', {hour:'2-digit', minute:'2-digit'});
+        ok = true;
+        taskStatus[job.staffId] = 'done';
+
+        // 완료목록에 저장 (Firebase/폰 동기화 + 영구 보관)
+        completedProjects.unshift({
+          project: { name: job.label, platform: '작업큐', revenue: '-', plan: job.prompt.slice(0,80), dept: s.dept },
+          results: { editor: result },
+          timestamp: new Date().toLocaleString('ko-KR'),
+          status: 'task', kind: 'doc', live: false, revenue: [], fromQueue: true
+        });
+        saveDone();
+      } catch(e) {
+        if (e.message && e.message.startsWith('rate_limit:')) {
+          const w = parseInt(e.message.split(':')[1],10) || 60;
+          await sleep((w+2)*1000);   // 휴식 후 재시도
+        } else {
+          job.status = 'error'; job.result = '오류: ' + e.message;
+          taskStatus[job.staffId] = 'error'; ok = true;
+        }
+      }
+    }
+    if (!ok) { job.status = 'error'; job.result = '재시도 초과'; }
+    saveQueue();
+    renderOffice(); refreshQueueModal(); updateQueueBadge();
+    // 즉시 다음 루프 → 다음 대기 작업 바로 진행
+  }
+
+  queueRunning = false;
+  updateQueueBadge();
+  // 완료된 작업이 있으면 알림
+  const doneCount = taskQueue.filter(j => j.status === 'done').length;
+  if (doneCount > 0) showNotif('🗂️ 작업 큐 완료', '대기 중인 모든 업무를 끝냈습니다.', [], true);
+}
+
+function updateQueueBadge() {
+  const btn = document.getElementById('queueBtn');
+  if (!btn) return;
+  const pending = taskQueue.filter(j => j.status === 'pending' || j.status === 'running').length;
+  btn.textContent = pending > 0 ? `🗂️ 작업큐 (${pending})` : '🗂️ 작업큐';
+}
+
+function openQueueModal() {
+  const pendingRunning = taskQueue.filter(j => j.status==='pending' || j.status==='running');
+  const finished = taskQueue.filter(j => j.status==='done' || j.status==='error');
+
+  const staffOpts = STAFF.map(s => `<option value="${s.id}">${s.emoji} ${s.name} (${s.role})</option>`).join('');
+
+  const jobRow = (j) => {
+    const s = getStaff(j.staffId);
+    const stCol = {pending:'var(--muted)', running:'var(--accent)', done:'var(--green)', error:'var(--red)'}[j.status];
+    const stTxt = {pending:'⏳ 대기', running:'⚡ 진행중', done:'✅ 완료', error:'❌ 오류'}[j.status];
+    return `<div style="background:var(--card);border:1px solid var(--border);border-left:3px solid ${stCol};border-radius:9px;padding:10px 12px;margin-bottom:7px">
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:3px">
+        <div style="font-size:12px;font-weight:700">${s?s.emoji:''} ${j.label}</div>
+        <div style="display:flex;gap:6px;align-items:center">
+          <span style="font-size:10px;font-weight:700;color:${stCol}">${stTxt}</span>
+          ${j.status==='pending'?`<button onclick="removeJob('${j.id}')" style="background:none;border:none;color:var(--muted);cursor:pointer;font-size:14px">✕</button>`:''}
+        </div>
+      </div>
+      <div style="font-size:10px;color:var(--muted);line-height:1.5">${j.prompt.slice(0,90)}${j.prompt.length>90?'...':''}</div>
+      ${j.status==='done'?`<button class="btn btn-accent" style="padding:3px 9px;font-size:10px;margin-top:6px" onclick="viewJobResult('${j.id}')">결과 보기</button>`:''}
+    </div>`;
+  };
+
+  openModal('queueModal', '🗂️ 작업 큐', `
+    <div style="background:#f59e0b10;border:1px solid #f59e0b33;border-radius:10px;padding:11px;margin-bottom:14px;font-size:11px;color:#f59e0b;line-height:1.6">
+      여러 업무를 미리 쌓아두면 <b>하나 끝나는 즉시 다음 업무가 자동으로 시작</b>돼요. 일하는 중에도 계속 추가 가능!
+    </div>
+    <div style="background:var(--card);border:1px solid var(--border);border-radius:11px;padding:12px;margin-bottom:16px">
+      <div style="font-size:12px;font-weight:700;margin-bottom:8px;color:var(--accent)">+ 새 업무 추가</div>
+      <label class="form-label">담당 직원</label>
+      <select id="q-staff" class="form-input" style="margin-bottom:8px">${staffOpts}</select>
+      <label class="form-label">업무 제목 (선택)</label>
+      <input id="q-label" class="form-input" placeholder="예: 7월 프로모션 카피 작성" style="margin-bottom:8px"/>
+      <label class="form-label">업무 지시 내용</label>
+      <textarea id="q-prompt" class="form-textarea" placeholder="무엇을 해야 하는지 구체적으로 적어주세요" style="min-height:70px;margin-bottom:10px"></textarea>
+      <button class="btn btn-green" style="width:100%" onclick="addJobFromForm()">➕ 큐에 추가</button>
+    </div>
+    ${pendingRunning.length ? `<div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;margin-bottom:8px">진행/대기 (${pendingRunning.length})</div>${pendingRunning.map(jobRow).join('')}` : '<div style="text-align:center;color:var(--muted);font-size:12px;padding:14px">대기 중인 업무가 없어요</div>'}
+    ${finished.length ? `<div style="font-size:11px;font-weight:700;color:var(--muted);letter-spacing:1px;margin:14px 0 8px">완료/오류 (${finished.length}) <button onclick="clearFinishedJobs()" style="background:none;border:none;color:var(--red);font-size:10px;cursor:pointer;float:right">정리</button></div>${finished.slice(0,8).map(jobRow).join('')}` : ''}
+  `, [{label:'닫기', cls:'btn-accent', action:'closeModal()'}]);
+}
+
+function refreshQueueModal() {
+  if (activeModal !== 'queueModal') return;
+  // 사용자가 입력 중이면(폼 타이핑) 새로고침 보류 — 입력 내용 보호
+  const ae = document.activeElement;
+  if (ae && (ae.id === 'q-prompt' || ae.id === 'q-label' || ae.id === 'q-staff')) return;
+  openQueueModal();
+}
+
+function addJobFromForm() {
+  const staffId = document.getElementById('q-staff').value;
+  const label = document.getElementById('q-label').value.trim();
+  const prompt = document.getElementById('q-prompt').value.trim();
+  if (!prompt) { alert('업무 지시 내용을 입력해주세요'); return; }
+  enqueueJob(staffId, prompt, label);
+  openQueueModal(); // 새로고침
+}
+
+function removeJob(id) {
+  taskQueue = taskQueue.filter(j => j.id !== id || j.status !== 'pending');
+  saveQueue(); openQueueModal(); updateQueueBadge();
+}
+
+function clearFinishedJobs() {
+  taskQueue = taskQueue.filter(j => j.status === 'pending' || j.status === 'running');
+  saveQueue(); openQueueModal();
+}
+
+function viewJobResult(id) {
+  const j = taskQueue.find(x => x.id === id);
+  if (!j) return;
+  window._jobText = j.result || '';
+  window._jobLabel = j.label || 'result';
+  openModal('jobResultModal', '🗂️ ' + j.label, `<div class="review-result">${j.result || '결과 없음'}</div>`, [
+    {label:'📋 복사', cls:'btn-accent', action:'copyText(window._jobText||"")'},
+    {label:'💾 .txt 저장', cls:'btn-green', action:'saveTxt(window._jobLabel||"result", window._jobText||"")'},
+    {label:'닫기', cls:'btn-accent', action:'closeModal();openQueueModal()'}
+  ]);
+}
+
+// ═══════════════════════════════════════════════
 //  부트
 // ═══════════════════════════════════════════════
 function boot() {
   renderAll();
   setTimeout(startSpeechTimers, 2000);
   if (cloudCfg.enabled && cloudCfg.dbUrl && cloudCfg.code) cloudConnect();
+  updateQueueBadge();
+  // 새로고침해도 대기 중이던 작업 자동 재개
+  if (taskQueue.some(j => j.status === 'pending' || j.status === 'running')) {
+    taskQueue.forEach(j => { if (j.status === 'running') j.status = 'pending'; }); // 중단됐던 건 대기로
+    saveQueue();
+    setTimeout(processQueue, 1500);
+  }
 }
 </script>
 </body>
