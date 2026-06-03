@@ -907,25 +907,48 @@ function cancelWorkflow() {
 //  아이디어 선택 모달
 // ═══════════════════════════════════════════════
 function openIdeaSelectModal() {
+  if (!currentIdeas.length) {
+    openModal('ideaModal', '💡 아이템', `<div style="text-align:center;padding:34px 16px;color:var(--muted)"><div style="font-size:34px;margin-bottom:10px">💡</div><div style="font-size:13px;line-height:1.7">후보를 모두 검토했어요.<br>새 아이템이 필요하면 <b>아이템 발굴</b>을 눌러주세요.</div></div>`, [
+      {label:'🔍 새로 발굴', cls:'btn-yellow', action:'closeModal();startPlanning()'},
+      {label:'닫기', cls:'btn-red', action:'closeModal();cancelWorkflow()'},
+    ]);
+    return;
+  }
+  selectedIdea = null;
   openModal('ideaModal', '💡 아이템 선택', `
-    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">박준서가 발굴한 아이템입니다. 하나를 선택하고 회의를 시작하세요.</p>
+    <p style="font-size:12px;color:var(--muted);margin-bottom:14px">박준서가 발굴한 ${currentIdeas.length}개입니다. 읽어보고 마음에 드는 걸 선택하거나, 별로면 🗑️로 파기하세요.</p>
     <div class="idea-grid" id="ideaGrid">
       ${currentIdeas.map((idea,i) => `
-        <div class="idea-card" id="idea-${i}" onclick="selectIdea(${i})">
-          <div class="idea-name">${idea.name}</div>
-          <div class="idea-tags">
-            <span class="tag" style="background:#00e5ff15;color:#00e5ff">${idea.platform}</span>
-            <span class="tag" style="background:#4b556330;color:var(--muted)">⏱ ${idea.time}</span>
-            <span class="tag" style="background:#10b98115;color:#10b981">💰 ${idea.revenue}</span>
+        <div class="idea-card" id="idea-${i}">
+          <div onclick="selectIdea(${i})" style="cursor:pointer">
+            <div class="idea-name">${idea.name}</div>
+            <div class="idea-tags">
+              <span class="tag" style="background:#00e5ff15;color:#00e5ff">${idea.platform}</span>
+              <span class="tag" style="background:#4b556330;color:var(--muted)">⏱ ${idea.time||'-'}</span>
+              <span class="tag" style="background:#10b98115;color:#10b981">💰 ${idea.revenue}</span>
+            </div>
+            <div class="idea-plan">${idea.plan}</div>
           </div>
-          <div class="idea-plan">${idea.plan}</div>
+          <div style="display:flex;gap:6px;margin-top:10px">
+            <button class="btn btn-accent" style="flex:1;padding:5px;font-size:11px" onclick="selectIdea(${i})">선택</button>
+            <button class="btn btn-yellow" style="padding:5px 10px;font-size:11px" onclick="discardIdea(${i})">🗑️ 파기</button>
+          </div>
         </div>
       `).join('')}
     </div>
   `, [
-    {label:'🏛️ 선택 후 회의 시작', cls:'btn-accent', action:'confirmIdeaAndMeet()', primary:true},
+    {label:'🏛️ 선택 후 회의 시작', cls:'btn-green', action:'confirmIdeaAndMeet()', primary:true},
+    {label:'🔍 새로 발굴', cls:'btn-yellow', action:'closeModal();startPlanning()'},
     {label:'취소', cls:'btn-red', action:'closeModal();cancelWorkflow()'},
   ]);
+}
+
+// 후보 개별 파기 (목록에서 제거)
+function discardIdea(i) {
+  const removed = currentIdeas[i];
+  currentIdeas.splice(i, 1);
+  if (selectedIdea === removed) selectedIdea = null;
+  openIdeaSelectModal();  // 갱신 (비면 자동 안내)
 }
 
 function selectIdea(i) {
@@ -980,11 +1003,12 @@ function openMeetingModal() {
     <div style="display:flex;flex-wrap:wrap;gap:6px;margin-bottom:10px">${atHtml}</div>
     ${inviteHtml}
     <div class="chat-box" id="meetChat" style="min-height:140px;max-height:48vh;overflow-y:auto"></div>
-    <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:8px">💡 회의를 닫고 나가면 자동으로 제작이 시작돼요</div>
+    <div style="font-size:10px;color:var(--muted);text-align:center;margin-top:8px">✅ 진행 / 🗑️ 파기는 아래 버튼으로. 그냥 닫으면 아무 일도 안 일어나요.</div>
   `, [
-    {label:'⚙️ 업무 진행', cls:'btn-green', action:'confirmWork()', primary:true},
-    {label:'대화하기', cls:'btn-accent', action:'openMeetSendRow()'},
-    {label:'나가기(제작시작)', cls:'btn-red', action:'leaveMeeting()'},
+    {label:'✅ 진행 — 제작 시작', cls:'btn-green', action:'confirmWork()', primary:true},
+    {label:'💬 대화하기', cls:'btn-accent', action:'openMeetSendRow()'},
+    {label:'🗑️ 파기 — 새 아이템', cls:'btn-yellow', action:'discardProject()'},
+    {label:'닫기', cls:'btn-red', action:'closeModal()'},
   ]);
 
   // 자동 브리핑
@@ -1012,16 +1036,21 @@ async function inviteToMeeting() {
   }
 }
 
-// 회의 나가기 = 자동 제작 시작
-function leaveMeeting() {
-  if (wfState === 'meeting' && currentProject && !_meetingProceeding) {
-    _meetingProceeding = true;
-    showNotif('🏛️ 회의 종료', `"${currentProject.name}" 제작을 시작합니다.`, [], true);
-    confirmWork();   // closeModal + 제작 시작
-    _meetingProceeding = false;
-  } else {
-    closeModal();
-  }
+// 🗑️ 회의 중 안건 파기 → 후보 목록으로 복귀 (새로 발굴 안 함)
+function discardProject() {
+  const name = currentProject ? currentProject.name : '';
+  // 현재 안건을 후보 목록에서 제거
+  const idx = currentIdeas.indexOf(currentProject);
+  if (idx >= 0) currentIdeas.splice(idx, 1);
+  closeModal();
+  currentProject = null;
+  selectedIdea = null;
+  meetingHistory = [];
+  meetingInvited = [];
+  Object.keys(taskStatus).forEach(k => { if (taskStatus[k] === 'working') taskStatus[k] = 'idle'; });
+  showNotif('🗑️ 파기', `"${name}" 파기. 다른 후보를 고르거나 새로 발굴하세요.`, [], true);
+  if (currentIdeas.length) { wfState = 'meeting'; renderAll(); openIdeaSelectModal(); }   // 남은 후보 보여줌
+  else { wfState = 'idle'; renderAll(); }                                                   // 후보 없으면 대기 (발굴 눌러야 새로)
 }
 
 async function autoMeetingBrief(attendees) {
@@ -1628,48 +1657,257 @@ function requestRevision() {
   }
 }
 
-function downloadPDF(silent) {
-  const editor = getStaff('editor');
-  const finalResult = taskResults['editor'] || taskResults[Object.keys(taskResults).pop()] || '';
+// 마크다운 인라인 (굵게·기울임·코드·링크) — HTML 이스케이프 후 변환
+function mdInline(t) {
+  return (t || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;')
+    .replace(/`([^`]+)`/g,'<code>$1</code>')
+    .replace(/\*\*([^*]+)\*\*/g,'<strong>$1</strong>')
+    .replace(/(^|[^\*])\*([^*\n]+)\*/g,'$1<em>$2</em>')
+    .replace(/\[([^\]]+)\]\(([^)]+)\)/g,'<a href="$2">$1</a>');
+}
+
+// 마크다운 → HTML (제목·표·목록·인용·구분선) + 목차 수집
+function mdToBook(md) {
+  const lines = (md || '').split('\n');
+  let html = '', i = 0; const toc = []; let list = null;
+  const closeList = () => { if (list) { html += '</' + list + '>'; list = null; } };
+  const cells = r => r.replace(/^\s*\|/,'').replace(/\|\s*$/,'').split('|').map(c => c.trim());
+
+  while (i < lines.length) {
+    const line = lines[i];
+    // 표
+    if (/^\s*\|/.test(line) && i+1 < lines.length && /-/.test(lines[i+1]) && /^\s*\|?[\s:|-]+$/.test(lines[i+1])) {
+      closeList();
+      const head = '<tr>' + cells(line).map(c => '<th>' + mdInline(c) + '</th>').join('') + '</tr>';
+      i += 2; let body = '';
+      while (i < lines.length && /^\s*\|/.test(lines[i])) { body += '<tr>' + cells(lines[i]).map(c => '<td>' + mdInline(c) + '</td>').join('') + '</tr>'; i++; }
+      html += '<table><thead>' + head + '</thead><tbody>' + body + '</tbody></table>';
+      continue;
+    }
+    const h = line.match(/^(#{1,4})\s+(.*)/);
+    if (h) {
+      closeList(); const lvl = h[1].length; const txt = h[2].trim();
+      if (lvl <= 2) { const id = 'sec' + toc.length; toc.push({ lvl, txt, id }); html += `<h${lvl} id="${id}">${mdInline(txt)}</h${lvl}>`; }
+      else html += `<h${lvl}>${mdInline(txt)}</h${lvl}>`;
+      i++; continue;
+    }
+    if (/^\s*[-*]\s+/.test(line)) { if (list !== 'ul') { closeList(); html += '<ul>'; list = 'ul'; } html += '<li>' + mdInline(line.replace(/^\s*[-*]\s+/,'')) + '</li>'; i++; continue; }
+    if (/^\s*\d+\.\s+/.test(line)) { if (list !== 'ol') { closeList(); html += '<ol>'; list = 'ol'; } html += '<li>' + mdInline(line.replace(/^\s*\d+\.\s+/,'')) + '</li>'; i++; continue; }
+    if (/^\s*>\s?/.test(line)) {
+      closeList(); const q = [];
+      while (i < lines.length && /^\s*>\s?/.test(lines[i])) { const c = mdInline(lines[i].replace(/^\s*>\s?/,'')); if (c.trim()) q.push(c); i++; }
+      if (q.length) html += '<blockquote>' + q.join('<br>') + '</blockquote>';
+      continue;
+    }
+    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { closeList(); html += '<hr/>'; i++; continue; }
+    if (line.trim() === '') { closeList(); i++; continue; }
+    closeList(); html += '<p>' + mdInline(line) + '</p>'; i++;
+  }
+  closeList();
+  return { html, toc };
+}
+
+// 구조 잡페이지 제거 ([상품 소개글]·[본문 완성본]·AI 자체 목차·중복 제목 등)
+function cleanDeliverable(md, title) {
+  const lines = (md || '').split('\n');
+  const out = []; let skipToc = false;
+  const junkHead = /^(본문\s*완성본|상품\s*소개글|소개글|본문\s*내용|본문|최종\s*완성본|결과물|completed|content)$/i;
+  // 이모지·기호 제거 후 비교
+  const norm = s => (s || '').replace(/[\[\]*#]/g,'').replace(/[^\p{L}\p{N}\s]/gu,'').replace(/\s+/g,' ').trim();
+  const titleN = norm(title);
+  for (let i = 0; i < lines.length; i++) {
+    let l = lines[i];
+    const hm = l.match(/^(#{1,4})\s+(.*)/);
+    if (hm) {
+      const tn = norm(hm[2]);
+      if (/^(목차|차례|contents|table of contents)$/i.test(tn)) { skipToc = true; continue; }   // AI 자체 목차 블록 시작
+      if (junkHead.test(tn)) { skipToc = false; continue; }                                       // 구조 라벨 헤딩 제거(내용 유지)
+      if (titleN && titleN.length > 6 && (tn === titleN || tn.startsWith(titleN.slice(0,12)) || titleN.startsWith(tn.slice(0,12)))) { skipToc = false; continue; }  // 표지와 중복된 제목 헤딩 제거
+      skipToc = false; out.push(l); continue;
+    }
+    if (skipToc) {
+      // 목차로 보이는 줄(목록·링크·짧은 항목)은 스킵, 일반 문단 만나면 종료
+      if (l.trim() === '' || /^\s*([-*]|\d+[\.\)]|\|)/.test(l) || /\.{2,}|—|·.*\d|p\.?\s*\d|페이지/i.test(l)) continue;
+      if (l.length < 50) continue;
+      skipToc = false; out.push(l); continue;
+    }
+    if (/^\s*\[(상품\s*소개글|본문\s*완성본|본문\s*내용|소개글|본문|최종\s*완성본)\]\s*$/.test(l)) continue;   // 대괄호 라벨 줄
+    out.push(l);
+  }
+  // 앞부분 연속 빈줄/구분선 정리
+  return out.join('\n').replace(/^(\s*\n)+/, '').replace(/\n{3,}/g, '\n\n');
+}
+
+// 주제·타깃에 맞는 트렌디 표지 테마 (고정 프레임 없음)
+const PDF_THEMES = {
+  pop:   { eyebrow:'TREND NOW',       coverBg:'linear-gradient(135deg,#7b2ff7 0%,#f72f8e 52%,#ff8a3d 100%)', cText:'#ffffff', cSub:'#ffe1ee', cEye:'#ffd6e8', accent:'#ff3d8b', head:'#2a1640', hl:'#ffe1ee', tFont:'sans' },
+  luxe:  { eyebrow:'PREMIUM EDITION',  coverBg:'radial-gradient(ellipse at 50% 32%,#2b2417 0%,#15110a 55%,#070502 100%)', cText:'#ffffff', cSub:'#d8cba6', cEye:'#d7b65a', accent:'#c9a227', head:'#2a2412', hl:'#f3e7c2', tFont:'serif' },
+  dark:  { eyebrow:'MINDSET',          coverBg:'radial-gradient(ellipse at 50% 38%,#3a1722 0%,#1a0c12 55%,#0a0608 100%)', cText:'#ffffff', cSub:'#e3c4cc', cEye:'#d98aa0', accent:'#d06079', head:'#3a1722', hl:'#f3d9df', tFont:'serif' },
+  bloom: { eyebrow:'LIFESTYLE',        coverBg:'linear-gradient(155deg,#ffd9c7 0%,#f7c9da 46%,#dcc9f1 100%)', cText:'#5a3a4a', cSub:'#7c5468', cEye:'#c65f8a', accent:'#e8729b', head:'#7a4a64', hl:'#ffe0ec', tFont:'serif' },
+  clean: { eyebrow:'PRACTICAL GUIDE',  coverBg:'linear-gradient(160deg,#e9fff7 0%,#e4f6ff 100%)', cText:'#0f3a30', cSub:'#3a6b5e', cEye:'#0e9e74', accent:'#10b981', head:'#0f3a30', hl:'#d6f5e8', tFont:'sans' },
+  neo:   { eyebrow:'DIGITAL GUIDE',    coverBg:'radial-gradient(ellipse at 50% 30%,#23306b 0%,#101633 55%,#070a18 100%)', cText:'#ffffff', cSub:'#b9c6f0', cEye:'#8fb4ff', accent:'#5b8cff', head:'#1b2547', hl:'#dbe6ff', tFont:'sans' },
+};
+function pickPdfTheme(p) {
+  const t = ((p&&p.name||'')+(p&&p.plan||'')+(p&&p.dept||'')+(p&&p.platform||'')).toLowerCase();
+  if (/sns|숏폼|틱톡|릴스|인스타|밈|gen|z세대|마케팅|바이럴|트렌드|챌린지|유튜브/.test(t)) return PDF_THEMES.pop;
+  if (/재테크|투자|주식|부업|수익|돈|머니|창업|비즈니스|매출|연봉|세금|부동산/.test(t)) return PDF_THEMES.luxe;
+  if (/심리|자기계발|멘탈|마음|내면|불안|관계|화법|설득|습관|동기/.test(t)) return PDF_THEMES.dark;
+  if (/힐링|감성|여성|취미|육아|반려|요가|명상|다이어리|플래너|레시피|꽃|웨딩/.test(t)) return PDF_THEMES.bloom;
+  if (/교육|학습|공부|템플릿|가이드|매뉴얼|입문|기초|실무|엑셀|노션|이력서/.test(t)) return PDF_THEMES.clean;
+  return PDF_THEMES.neo;
+}
+
+// 🎨 한채원이 직접 표지 컨셉을 정함 (실패 시 null → 키워드 폴백)
+async function aiDesignTheme(project, text) {
+  const designer = getStaff('designer') || { prompt:'당신은 디자이너입니다.', name:'한채원' };
+  const info = `상품명: ${project?project.name:''}\n판매처: ${project?project.platform:''}\n설명: ${project?project.plan:''}\n본문 일부: ${(text||'').replace(/[#*>|`]/g,' ').replace(/\s+/g,' ').slice(0,500)}`;
+  const raw = await callClaude(
+    designer.prompt + '\n너는 지금 전자책 표지 아트디렉터다. 상품 주제·타깃 독자·2025~2026 디자인 트렌드를 고려해 표지 컬러 컨셉을 직접 결정한다.',
+    [{ role:'user', content:`아래 전자책의 표지 컬러 컨셉을 정해줘. 타깃 독자층과 요즘 트렌드를 반영하고, 제목 글자는 배경과 명확히 대비되게(밝은 배경=어두운 글자, 어두운 배경=밝은 글자).\n\n${info}\n\nJSON만 출력(설명·코드펜스 금지):\n{"concept":"한 줄 컨셉 설명","eyebrow":"표지 상단 영문 라벨 대문자 1~3단어","coverBg":"세련된 CSS gradient (linear-gradient 또는 radial-gradient, 2~3색)","cText":"제목 글자색 hex","cSub":"부제 글자색 hex","cEye":"eyebrow 색 hex","accent":"본문 포인트색 hex","head":"헤딩 색 hex(진한)","hl":"형광펜 배경 hex(아주 연한)","tFont":"serif 또는 sans"}` }],
+    'designer'
+  );
+  let j = null;
+  try { const m = raw.replace(/```json|```/g,'').match(/\{[\s\S]*\}/); if (m) j = JSON.parse(m[0]); } catch(e) {}
+  if (!j) return null;
+  const hex = v => (typeof v==='string' && /^#[0-9a-fA-F]{3,8}$/.test(v.trim())) ? v.trim() : null;
+  const grad = v => (typeof v==='string' && /gradient/i.test(v) && /^[#a-zA-Z0-9 ,.%()\-]+$/.test(v)) ? v.trim() : null;
+  const cText = hex(j.cText) || '#ffffff';
+  return {
+    eyebrow: (typeof j.eyebrow==='string'?j.eyebrow:'').replace(/[^A-Za-z0-9 &]/g,'').toUpperCase().trim().slice(0,24) || 'NEXIVA',
+    coverBg: grad(j.coverBg) || 'radial-gradient(ellipse at 50% 30%,#23306b 0%,#101633 55%,#070a18 100%)',
+    cText, cSub: hex(j.cSub) || cText, cEye: hex(j.cEye) || hex(j.accent) || '#8fb4ff',
+    accent: hex(j.accent) || '#5b8cff', head: hex(j.head) || '#1b2547', hl: hex(j.hl) || '#dbe6ff',
+    tFont: (j.tFont==='serif' ? 'serif' : 'sans'),
+    concept: typeof j.concept==='string' ? j.concept.slice(0,90) : ''
+  };
+}
+
+async function downloadPDF(silent) {
+  let finalResult = taskResults['editor'] || taskResults[Object.keys(taskResults).pop()] || '';
   if (!finalResult) { if(!silent) alert('결과물이 없습니다'); return; }
+  const title = currentProject ? currentProject.name : 'NEXIVA 결과물';
+  finalResult = cleanDeliverable(finalResult, title);
+  const subtitle = currentProject && currentProject.platform ? currentProject.platform + ' 판매용' : 'NEXIVA AI Company';
 
-  const lines = finalResult.split('\n').map(l => {
-    if(l.startsWith('# ')) return `<h1>${l.slice(2)}</h1>`;
-    if(l.startsWith('## ')) return `<h2>${l.slice(3)}</h2>`;
-    if(l.startsWith('### ')) return `<h3>${l.slice(4)}</h3>`;
-    if(l.startsWith('- ')) return `<li>${l.slice(2)}</li>`;
-    if(l.match(/^\d+\. /)) return `<li>${l.replace(/^\d+\. /,'')}</li>`;
-    if(l.startsWith('> ')) return `<blockquote>${l.slice(2)}</blockquote>`;
-    if(l==='---') return '<hr/>';
-    return l ? `<p>${l}</p>` : '<br/>';
-  }).join('');
+  // 새 탭을 즉시 열고(팝업 차단 방지) 로딩 표시 → 한채원 디자인 후 채움
+  let win = null;
+  if (!silent) {
+    win = window.open('', '_blank');
+    if (win) win.document.write('<!doctype html><meta charset="utf-8"><body style="margin:0;height:100vh;display:flex;align-items:center;justify-content:center;background:#0d1117;color:#cdd3e2;font-family:sans-serif;text-align:center"><div><div style="font-size:34px">🎨</div><div style="margin-top:12px">한채원이 표지를 디자인하는 중...</div><div style="font-size:12px;color:#6b7280;margin-top:6px">잠시만요 (몇 초)</div></div></body>');
+  }
 
-  const dateStr = new Date().toLocaleString('ko-KR');
-  const html = `<!DOCTYPE html><html><head><meta charset="UTF-8"><title>${currentProject?currentProject.name:'NEXIVA 결과물'}</title>
+  // 🎨 한채원이 컨셉 결정 (실패하면 키워드 테마)
+  let th = null;
+  if (!silent) { try { th = await aiDesignTheme(currentProject, finalResult); } catch(e) {} }
+  if (!th) th = pickPdfTheme(currentProject);
+  if (!silent && th.concept) showNotif('🎨 한채원 디자인', '"' + th.concept + '"', [], true);
+
+  const dateStr = new Date().toLocaleDateString('ko-KR', { year:'numeric', month:'long', day:'numeric' });
+  const { html: body, toc } = mdToBook(finalResult);
+
+  let chap = 0;
+  const tocHtml = toc.length ? `<nav class="toc"><div class="toc-eyebrow">CONTENTS</div><div class="toc-h">차례</div><div class="toc-rule"></div>${
+    toc.map(t => {
+      const txt = t.txt.replace(/<[^>]+>/g,'');
+      if (t.lvl === 1) { chap++; return `<a class="toc-row" href="#${t.id}"><span class="toc-num">${String(chap).padStart(2,'0')}</span><span class="toc-ttl">${txt}</span><span class="toc-dots"></span></a>`; }
+      return `<a class="toc-row sub" href="#${t.id}"><span class="toc-num"></span><span class="toc-ttl">${txt}</span><span class="toc-dots"></span></a>`;
+    }).join('')
+  }</nav>` : '';
+
+  const html = `<!DOCTYPE html><html lang="ko"><head><meta charset="UTF-8"><title>${title}</title>
 <style>
-@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;700&display=swap');
-*{box-sizing:border-box}body{font-family:'Noto Sans KR',sans-serif;max-width:800px;margin:0 auto;padding:48px 56px;color:#1a1a2e;line-height:2;font-size:15px}
-header{border-bottom:3px solid #00e5ff;padding-bottom:20px;margin-bottom:40px}
-.badge{background:#0a1628;color:#00e5ff;font-size:11px;padding:4px 12px;border-radius:20px;letter-spacing:2px;font-weight:700;display:inline-block;margin-bottom:12px}
-h1{font-size:26px;font-weight:800;margin:16px 0 10px}h2{font-size:19px;margin:32px 0 10px;padding:10px 16px;border-left:4px solid #00e5ff;background:#f8faff;font-weight:700}
-h3{font-size:16px;margin:20px 0 8px;font-weight:700}p{margin:10px 0;color:#334155}li{margin:6px 0 6px 24px;color:#334155}
-blockquote{background:#f8faff;border-left:4px solid #00e5ff;padding:12px 20px;margin:16px 0;color:#1e40af;border-radius:0 8px 8px 0}
-hr{border:none;border-top:1px solid #e2e8f0;margin:28px 0}
-footer{margin-top:50px;padding-top:16px;border-top:1px solid #e2e8f0;font-size:11px;color:#94a3b8;display:flex;justify-content:space-between}
-.no-print{background:#f0f9ff;border:1px solid #bae6fd;border-radius:8px;padding:10px 16px;margin-bottom:20px;font-size:12px;color:#0369a1}
-@media print{.no-print{display:none}body{padding:20px 30px}}
+@import url('https://fonts.googleapis.com/css2?family=Noto+Sans+KR:wght@400;500;700;900&family=Noto+Serif+KR:wght@400;500;600;700&display=swap');
+*{box-sizing:border-box;-webkit-print-color-adjust:exact;print-color-adjust:exact}
+:root{--ink:#23262e;--head:${th.head};--accent:${th.accent};--hl:${th.hl}}
+@page{size:A4;margin:24mm 22mm 20mm;@bottom-center{content:counter(page);font-family:'Noto Sans KR';font-size:9pt;color:#b9b9c2}}
+@page:first{margin:0;@bottom-center{content:none}}
+body{font-family:'Noto Serif KR',serif;color:var(--ink);line-height:1.95;font-size:11pt;margin:0;background:#fff}
+
+/* ── 표지 (테마별·프레임 없음) */
+.cover{width:210mm;height:297mm;display:flex;flex-direction:column;justify-content:center;align-items:center;text-align:center;
+  background:${th.coverBg};color:${th.cText};position:relative;overflow:hidden;break-after:page;padding:28mm}
+.cover .ovl{position:absolute;inset:0;background:radial-gradient(circle at 76% 16%,rgba(255,255,255,.14),transparent 42%),radial-gradient(circle at 12% 88%,rgba(255,255,255,.08),transparent 40%);z-index:1}
+.cover .eyebrow{font-family:'Noto Sans KR';letter-spacing:9px;font-size:11pt;color:${th.cEye};font-weight:700;margin-bottom:24mm;text-indent:9px;z-index:2}
+.cover .title{font-family:${th.tFont==='serif'?"'Noto Serif KR'":"'Noto Sans KR'"};font-weight:900;font-size:38pt;line-height:1.34;color:${th.cText};text-shadow:0 2px 30px rgba(0,0,0,.18);max-width:84%;word-break:keep-all;z-index:2}
+.cover .accentbar{width:72px;height:4px;background:${th.accent};margin:26px 0;border-radius:3px;z-index:2}
+.cover .sub{font-family:'Noto Serif KR';font-size:13.5pt;color:${th.cSub};line-height:1.95;max-width:76%;word-break:keep-all;z-index:2}
+.cover .foot{position:absolute;bottom:24mm;font-family:'Noto Sans KR';letter-spacing:5px;font-size:8.5pt;color:${th.cSub};opacity:.8;z-index:2}
+
+/* ── 판권 */
+.copy{break-after:page;padding-top:62mm}
+.copy h1{font-family:'Noto Sans KR';font-weight:900;font-size:19pt;color:var(--head);margin:0 0 6px}
+.copy .csub{font-family:'Noto Serif KR';font-size:11pt;color:#5b616e;margin-bottom:24px}
+.copy .meta{font-family:'Noto Sans KR';font-size:9.3pt;color:#9aa0ad;line-height:2.1}
+.callout{margin-top:26px;background:#f6f7f9;border-left:4px solid var(--accent);padding:16px 20px;font-size:9.6pt;line-height:1.95;color:#4b4f5a;font-family:'Noto Sans KR'}
+.callout b{color:var(--head)}
+
+/* ── 목차 */
+.toc{break-after:page;padding-top:6mm}
+.toc-eyebrow{font-family:'Noto Sans KR';letter-spacing:8px;font-size:10pt;color:var(--accent);font-weight:700;margin-bottom:4px}
+.toc-h{font-family:'Noto Sans KR';font-weight:900;font-size:26pt;color:var(--head)}
+.toc-rule{height:2.5px;background:var(--head);margin:14px 0 22px}
+.toc-row{display:flex;align-items:baseline;text-decoration:none;color:#2c3242;padding:11px 2px;border-bottom:1px dotted #dcdce2}
+.toc-row.sub{padding-left:30px}
+.toc-num{font-family:'Noto Sans KR';font-weight:700;color:var(--accent);width:34px;flex-shrink:0;font-size:11pt}
+.toc-ttl{font-family:'Noto Sans KR';font-size:11.5pt}
+.toc-row.sub .toc-ttl{font-size:10pt;color:#6b7280}
+.toc-dots{flex:1}
+.toc-row::after{content:target-counter(attr(href),page);font-family:'Noto Sans KR';color:#9aa0ad;font-size:10pt;padding-left:10px}
+
+/* ── 본문 */
+h1{font-family:'Noto Sans KR';font-weight:900;font-size:21pt;color:var(--head);margin:0 0 4px;break-before:page;line-height:1.34;word-break:keep-all}
+h1:first-of-type{break-before:avoid}
+h1::after{content:'';display:block;width:56px;height:3px;background:var(--accent);margin:16px 0 10px;border-radius:2px}
+h2{font-family:'Noto Sans KR';font-weight:700;font-size:14pt;color:var(--head);margin:28px 0 9px;padding-left:13px;border-left:4px solid var(--accent);word-break:keep-all}
+h3{font-family:'Noto Sans KR';font-weight:700;font-size:12pt;color:#2b3550;margin:18px 0 6px}
+h4{font-family:'Noto Sans KR';font-weight:600;font-size:11pt;color:#3b4252;margin:13px 0 4px}
+p{margin:8px 0;text-align:justify;word-break:keep-all}
+strong{font-weight:700;color:var(--head);background:linear-gradient(transparent 62%,var(--hl) 62%);padding:0 1px}
+em{font-style:italic;color:#52586a}
+code{font-family:'Courier New',monospace;background:#f0f1f4;color:#9a4a2f;padding:1px 6px;border-radius:4px;font-size:9.3pt}
+ul,ol{margin:8px 0 8px 4px;padding-left:22px}
+li{margin:5px 0;word-break:keep-all}
+li::marker{color:var(--accent)}
+blockquote{position:relative;text-align:center;font-family:'Noto Serif KR';font-style:italic;font-weight:500;font-size:14pt;color:var(--head);line-height:1.75;margin:34px 30px;padding:4px 30px;break-inside:avoid}
+blockquote::before{content:'\\201C';position:absolute;left:2px;top:-16px;font-size:30pt;color:var(--accent);font-family:Georgia,serif;line-height:1;opacity:.7}
+blockquote::after{content:'\\201D';position:absolute;right:2px;bottom:-26px;font-size:30pt;color:var(--accent);font-family:Georgia,serif;line-height:1;opacity:.7}
+hr{border:none;height:1px;margin:26px 0;text-align:center;overflow:visible}
+hr::after{content:'\\2726';display:inline-block;color:var(--accent);font-size:11pt;position:relative;top:-9px;background:#fff;padding:0 12px}
+table{width:100%;border-collapse:collapse;margin:15px 0;font-family:'Noto Sans KR';font-size:9.6pt;break-inside:avoid}
+th{background:var(--head);color:#fff;padding:9px 12px;text-align:left;font-weight:700}
+td{padding:8px 12px;border-bottom:1px solid #e6e6ec}
+tbody tr:nth-child(even){background:#f8f9fb}
+.no-print{background:var(--head);color:#e6eaf4;border-radius:8px;padding:12px 18px;margin:14px;font-size:12px;font-family:'Noto Sans KR';display:flex;justify-content:space-between;align-items:center;gap:10px}
+.no-print button{background:var(--accent);color:#fff;border:none;border-radius:6px;padding:7px 14px;font-weight:700;font-size:12px;cursor:pointer}
+@media print{.no-print{display:none}}
 </style></head><body>
-<div class="no-print">💡 Cmd+P → PDF 저장 | 생성: ${dateStr}</div>
-<header><div class="badge">NEXIVA · ${editor?editor.name:'편집장'}</div>
-<h1>${currentProject?currentProject.name:'NEXIVA 결과물'}</h1>
-<p style="color:#64748b;font-size:13px;margin:0">${dateStr} | NEXIVA AI Company</p></header>
-<main>${lines}</main>
-<footer><span>⚡ NEXIVA AI Company</span><span>Powered by Claude Sonnet</span></footer>
-<script>setTimeout(()=>window.print(),600);<\/script>
+<div class="no-print"><span>💡 자동으로 인쇄창이 떠요. 안 뜨면 버튼 클릭 → <b>대상: PDF로 저장</b></span><button onclick="window.print()">📄 PDF로 저장</button></div>
+<section class="cover">
+  <div class="ovl"></div>
+  <div class="eyebrow">${th.eyebrow}</div>
+  <div class="title">${title.replace(/</g,'&lt;')}</div>
+  <div class="accentbar"></div>
+  <div class="sub">${subtitle.replace(/</g,'&lt;')}</div>
+  <div class="foot">N E X I V A &nbsp;·&nbsp; ${dateStr}</div>
+</section>
+<section class="copy">
+  <h1>${title.replace(/</g,'&lt;')}</h1>
+  <div class="csub">${subtitle.replace(/</g,'&lt;')}</div>
+  <div class="meta">초판 발행 · 전자책(PDF) 에디션<br>발행 ${dateStr} · NEXIVA AI Company<br>© 모든 권리 보유. 본 전자책의 무단 복제·배포·전송을 금합니다.</div>
+  <div class="callout"><b>안내.</b> 본 전자책은 AI 기반으로 제작된 디지털 상품입니다. 수록된 정보는 작성 시점 기준이며, 실제 활용 시 최신 정보를 함께 확인하시기 바랍니다.</div>
+</section>
+${tocHtml}
+<main>${body}</main>
+<script>
+  window.PagedConfig={auto:true,after:function(){setTimeout(function(){window.print();},900);}};
+<\/script>
+<script src="https://unpkg.com/pagedjs/dist/paged.polyfill.js"><\/script>
 </body></html>`;
 
   const url = URL.createObjectURL(new Blob([html], {type:'text/html'}));
-  window.open(url, '_blank');
+  if (win) win.location.href = url;        // 미리 연 탭에 채움
+  else window.open(url, '_blank');          // silent(자동저장) 경로
 }
 
 // ═══════════════════════════════════════════════
@@ -2969,11 +3207,6 @@ function openModal(id, title, bodyHtml, buttons) {
 }
 
 function closeModal() {
-  // 회의실을 X/바깥클릭으로 닫아도 자동 제작 시작
-  if (activeModal === 'meetingModal' && wfState === 'meeting' && currentProject && !_meetingProceeding) {
-    leaveMeeting();
-    return;
-  }
   if (activeModal) {
     const el = document.getElementById(activeModal);
     if (el) el.remove();
