@@ -737,7 +737,7 @@ function renderOffice() {
   `).join('');
 
   const meetingHtml = `
-    <div class="room room-meeting" onclick="wfState==='meeting'?openMeetingModal():null">
+    <div class="room room-meeting" onclick="wfState==='meeting'?enterMeeting():null">
       <div class="room-label">회의실</div>
       <div class="meeting-table">
         <div class="meeting-table-top">MEETING</div>
@@ -837,7 +837,7 @@ function renderCtrlBar() {
     btns = `<button class="btn btn-red" onclick="cancelWorkflow()">✕ 취소</button>`;
   } else if (wfState === 'meeting') {
     hint = '회의실을 클릭하거나 아래 버튼으로 회의를 진행하세요';
-    btns = `<button class="btn btn-accent" onclick="openMeetingModal()">🏛️ 회의실 입장</button><button class="btn btn-red" onclick="cancelWorkflow()">✕ 취소</button>`;
+    btns = `<button class="btn btn-accent" onclick="enterMeeting()">🏛️ 회의실 입장</button><button class="btn btn-red" onclick="cancelWorkflow()">✕ 취소</button>`;
   } else if (wfState === 'working') {
     const done = Object.values(taskStatus).filter(v=>v==='done').length;
     const total = Object.keys(taskStatus).length;
@@ -870,8 +870,14 @@ async function startPlanning() {
 
   try {
     const text = await callClaude(
-      planner.prompt,
-      [{role:'user', content:'음악·비트·영상·콘텐츠·디지털상품 등 다양한 분야에서 수익 아이템 4개 발굴. JSON 배열만 응답: [{"name":"","platform":"","time":"","revenue":"","plan":"","dept":""}] dept는 주로 담당할 팀(제작팀/크리에이티브/기획팀 중 하나)'}],
+      planner.prompt + '\n회사 철학: "투자금 대비 확실한 수익이면 분야·플랫폼 무관 뭐든 한다."',
+      [{role:'user', content:`투자 대비 확실한 수익이 나는 아이템 4개를 발굴해. 분야·형태 제한 없음.
+
+★ 플랫폼을 매번 다양하게(크몽/Gumroad 반복 금지). 4개의 platform을 서로 다르게:
+크몽, Gumroad, Etsy, BeatStars, 유튜브, 네이버 스마트스토어, 클래스101, 탈잉, Udemy, 아마존 KDP, Redbubble(POD 굿즈), Creative Market, Fiverr, Notion 마켓, Substack(뉴스레터), 카카오 이모티콘, 텀블벅, 어필리에이트 중에서.
+★ 사업형태도 다양하게: 디지털상품·구독·강의·POD굿즈·뉴스레터·어필리에이트·자동화서비스 등.
+
+JSON 배열만 응답: [{"name":"","platform":"","time":"","revenue":"","plan":"","dept":""}] dept는 제작팀/크리에이티브/기획팀 중 하나.`}],
       'planner'
     );
     let ideas;
@@ -970,8 +976,17 @@ function confirmIdeaAndMeet() {
 // ═══════════════════════════════════════════════
 //  회의 모달
 // ═══════════════════════════════════════════════
+// 회의실 입장 디스패처: 안건 있으면 회의, 없으면 후보 선택/발굴 안내
+function enterMeeting() {
+  if (currentProject) { openMeetingModal(); return; }
+  if (currentIdeas && currentIdeas.length) { openIdeaSelectModal(); return; }   // 아직 안 골랐으면 후보 목록
+  showNotif('🏛️ 회의실', '아직 선택된 안건이 없어요.\n먼저 아이템 발굴 → 후보 선택을 해주세요.', [
+    {label:'💡 아이템 발굴', action:'closeNotif();cancelWorkflow();startPlanning()'}
+  ]);
+}
+
 function openMeetingModal() {
-  if (!currentProject) return;
+  if (!currentProject) { enterMeeting(); return; }
 
   const attendees = meetingAttendees();
   const atHtml = attendees.map(s => `
