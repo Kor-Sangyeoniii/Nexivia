@@ -295,7 +295,7 @@ input,textarea,select{font-family:inherit;font-size:14px;outline:none}
     <div><div class="logo">NEXIVA</div><div class="logo-sub">AI COMPANY</div></div>
     <div style="display:flex;gap:7px;margin-left:auto">
       <button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="openBriefModal()" id="briefBtn">📰 브리핑</button>
-      <button class="btn btn-purple" style="padding:5px 11px;font-size:11px" onclick="openImageStudio()">🖼️ 이미지</button>
+      <button class="btn btn-purple" style="padding:5px 11px;font-size:11px" onclick="openImageStudio()">🖼️ SNS이미지</button>
       <button class="btn btn-yellow" style="padding:5px 11px;font-size:11px" onclick="openQueueModal()" id="queueBtn">🗂️ 작업큐</button>
       <button class="btn btn-accent" style="padding:5px 11px;font-size:11px" onclick="openManage()">👥 직원관리</button>
       <button class="btn btn-green" style="padding:5px 11px;font-size:11px" onclick="openMcpCenter()">🔌 연동(MCP)</button>
@@ -378,6 +378,7 @@ let currentProject = null;
 let currentIdeas = [];
 let selectedIdea = null;
 let taskResults = {};
+let currentDesigns = [];   // 이번 제작에서 한채원이 만든 이미지(SVG)
 let taskStatus = {}; // staffId -> idle|working|done|error|resting
 let taskDesc = {};   // staffId -> 현재 업무 설명
 let streamBuf = {};  // staffId -> 실시간 스트리밍 텍스트
@@ -1180,6 +1181,7 @@ function confirmWork() {
   wfState = 'working';   // ★ closeModal의 자동진행 재발동 방지 위해 먼저 변경
   closeModal();
   taskResults = {};
+  currentDesigns = [];
 
   // 담당팀 + 편집장 + 회의에 초대된 팀원
   const ids = new Set(['editor']);
@@ -1265,6 +1267,15 @@ async function runProductionPipeline(workers) {
 먼저 [상품 소개글], 그 다음 [본문 완성본] 순서로.\n\n${allCtx}`;
     }
     await runTask(editor, finalInstruction);
+  }
+
+  // 🎨 한채원이 표지 이미지까지 생성 (결과물에 포함 — 글+이미지 한 세트)
+  currentDesigns = [];
+  const designer = getStaff('designer');
+  if (designer) {
+    taskStatus[designer.id] = 'working'; renderOffice();
+    try { const svg = await genCoverSvg(currentProject); if (svg) currentDesigns = [svg]; } catch(e) {}
+    taskStatus[designer.id] = 'done'; renderOffice();
   }
 
   // 완료
@@ -1373,8 +1384,8 @@ function openReviewModal() {
   }[kind];
 
   const buttons = [
-    {label:'✅ 승인 — 완료 처리', cls:'btn-green', action:'approveProject()', primary:true},
-    {label:'🔧 보완 요청', cls:'btn-yellow', action:'requestRevision()'},
+    {label:'✅ 승인 — 결과물 채택', cls:'btn-green', action:'approveProject()', primary:true},
+    {label:'✍️ 글 수정 요청 (글팀)', cls:'btn-yellow', action:'requestRevision()'},
   ];
   if (isCreative) {
     buttons.push({label:'📋 프롬프트 복사', cls:'btn-accent', action:'copyText(window._lastReviewText||"")'});
@@ -1404,18 +1415,34 @@ function openReviewModal() {
         <div id="sunoPromptBox" style="font-size:11px;color:var(--muted);margin-top:8px">버튼을 누르면 Claude가 패키지에서 <b>Styles</b>(스타일)와 <b>Lyrics</b>(가사)를 깔끔하게 뽑아드려요. 그대로 복사해서 Suno에 붙여넣으세요.</div>
       </div>` : ''}
     <div style="background:#a78bfa08;border:1px solid #a78bfa33;border-radius:10px;padding:11px;margin-bottom:12px">
-      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px">
-        <div style="font-size:12px;font-weight:700;color:#a78bfa">🎨 한채원 — 표지/썸네일 디자인</div>
-        <button class="btn btn-purple" style="padding:5px 12px;font-size:11px" onclick="generateCoverDesign()">▶️ 디자인 생성</button>
+      <div style="display:flex;justify-content:space-between;align-items:center;gap:8px;margin-bottom:8px">
+        <div style="font-size:12px;font-weight:700;color:#a78bfa">🎨 한채원이 만든 표지 이미지</div>
+        <button class="btn btn-purple" style="padding:5px 12px;font-size:11px" onclick="regenReviewImage()">🎨 이미지 다시 (디자인팀)</button>
       </div>
-      <div id="designStatus" style="font-size:11px;color:var(--muted);margin-top:8px">버튼을 누르면 한채원이 실제 표지 이미지를 그려줍니다 (PNG/SVG 저장 가능).</div>
+      <div id="reviewDesignBox" style="text-align:center">${
+        currentDesigns.length
+          ? `<div style="width:150px;display:inline-block;border-radius:6px;overflow:hidden;background:#000">${currentDesigns[0].replace(/<svg /,'<svg style="width:100%;height:auto;display:block" ')}</div>`
+          : `<span style="font-size:11px;color:var(--muted)">이미지 생성 중... (잠시 후 표시)</span>`
+      }</div>
     </div>
+    <div style="font-size:11px;color:var(--muted);margin-bottom:6px">📝 글 결과물 (이상하면 아래에 적어 글팀에 수정 요청)</div>
     <div class="review-result">${finalResult || '결과물 없음'}</div>
-    <div style="margin-bottom:12px">
-      <label class="form-label">보완 요청 내용 (승인 시 비워두세요)</label>
-      <textarea id="revisionNote" class="form-textarea" placeholder="예: 3번 트랙 프롬프트에 베이스라인을 더 강조해주세요."></textarea>
+    <div style="margin:10px 0 12px">
+      <label class="form-label">✍️ 글 수정 요청 내용 (승인 시 비워두세요)</label>
+      <textarea id="revisionNote" class="form-textarea" placeholder="예: 3챕터가 부족해요. 실전 예시를 더 넣어주세요."></textarea>
     </div>
   `, buttons);
+}
+
+// 🎨 검토 중 이미지 다시 그리기 (디자인팀)
+async function regenReviewImage() {
+  const box = document.getElementById('reviewDesignBox');
+  if (box) box.innerHTML = '<span style="font-size:11px;color:#a78bfa">🎨 한채원이 다시 그리는 중...</span>';
+  const designer = getStaff('designer');
+  if (designer) { taskStatus[designer.id] = 'working'; renderOffice(); }
+  try { const svg = await genCoverSvg(currentProject); if (svg) currentDesigns = [svg]; } catch(e) {}
+  if (designer) { taskStatus[designer.id] = 'idle'; renderOffice(); }
+  if (activeModal === 'reviewModal') openReviewModal();   // 새 이미지로 갱신
 }
 
 // ═══════════════════════════════════════════════
@@ -1551,7 +1578,7 @@ function approveProject() {
     revenue: []          // [{date:'YYYY-MM-DD', amount:number}]
   };
   result.kind = projectKind();
-  result.designs = [];   // 한채원이 생성한 이미지(SVG) 저장
+  result.designs = currentDesigns.slice();   // 제작 때 한채원이 만든 이미지 그대로 저장
   completedProjects.unshift(result);
   saveDone();
   // 종류별 자동 저장: 문서형은 PDF, 크리에이티브는 .txt 패키지
@@ -1568,36 +1595,12 @@ function approveProject() {
   currentProject = null;
   currentIdeas = [];
   taskResults = {};
+  currentDesigns = [];
   Object.keys(taskStatus).forEach(k => taskStatus[k]='idle');
   renderAll();
 
-  // 🎨 한채원이 표지 이미지 자동 생성 (백그라운드)
-  autoGenerateCover(result);
-
   // 방금 승인한 프로젝트(맨 앞)의 업로드 체크리스트 열기
   openUploadChecklist(0);
-}
-
-// 채택 시 한채원이 표지 이미지를 그려 완료목록에 저장
-async function autoGenerateCover(entry) {
-  if (!entry || !entry.project) return;
-  const designer = getStaff('designer');
-  if (designer) taskStatus[designer.id] = 'working';
-  renderOffice();
-  showNotif('🎨 한채원 작업 중', `"${entry.project.name}" 표지 이미지를 그리고 있어요...`, [], true);
-  try {
-    const svg = await genCoverSvg(entry.project);
-    if (svg) {
-      entry.designs = entry.designs || [];
-      entry.designs.push(svg);
-      saveDone();   // 완료목록 + Firebase/폰 동기화
-      showNotif('🎨 이미지 완성!', '완료목록에서 이미지를 확인·다운로드하세요.', [
-        {label:'📋 완료목록', action:'closeNotif();openDoneList()'}
-      ]);
-    }
-  } catch(e) {}
-  if (designer) taskStatus[designer.id] = 'idle';
-  renderOffice();
 }
 
 // 프로젝트에 맞는 가이드 객체 반환 (공용)
