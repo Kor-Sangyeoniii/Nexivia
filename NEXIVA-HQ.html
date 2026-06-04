@@ -655,7 +655,7 @@ async function callClaudeStream(system, messages, staffId, onChunk) {
 }
 
 // ── 긴 글 자동 이어쓰기 (잘리면 끝까지 이어붙임)
-async function streamLong(system, baseMessages, staffId, onChunk, maxRounds = 6) {
+async function streamLong(system, baseMessages, staffId, onChunk, maxRounds = 14) {
   const messages = baseMessages.slice();
   let full = '';
   for (let i = 0; i < maxRounds; i++) {
@@ -1259,9 +1259,11 @@ async function runProductionPipeline(workers) {
 - 이 주제의 진짜 전문가만 아는 구체적 노하우·수치·실제 사례·실수담을 넣어라.
 - 바로 따라 할 수 있는 실전 템플릿/예시/체크리스트를 최소 3개 이상 포함.
 
-[형식]
+[형식 — 진짜 책처럼 깔끔하게]
 - 맨 앞 [상품 소개글]: 제목 후보 3개 + 한 줄 후킹 + 구매전환 설명문
 - 본문: 이 상품에 최적화된 챕터 구성, 마크다운(#, ##, ###, 표, 목록), 충분한 분량
+- ⛔ 구분선/대시 장식 절대 금지: "------", "======", "* * *", "───" 같은 줄을 절대 쓰지 마라. 구역 구분은 오직 제목(##, ###)과 빈 줄로만.
+- ⛔ 제목 밑에 밑줄용 대시(------) 깔지 마라. 제목은 무조건 #, ##, ### 로만.
 - 상위 1% 수준, 축약·생략 절대 금지. (길어서 잘리면 시스템이 이어서 완성함)
 
 먼저 [상품 소개글], 그 다음 [본문 완성본] 순서로.\n\n${allCtx}`;
@@ -1744,9 +1746,18 @@ function mdToBook(md) {
       if (q.length) html += '<blockquote>' + q.join('<br>') + '</blockquote>';
       continue;
     }
-    if (/^\s*(-{3,}|\*{3,}|_{3,})\s*$/.test(line)) { closeList(); html += '<hr/>'; i++; continue; }
+    if (/^\s*(-{3,}|\*{3,}|_{3,}|={3,}|—{2,}|·{3,})\s*$/.test(line)) { closeList(); html += '<hr/>'; i++; continue; }
     if (line.trim() === '') { closeList(); i++; continue; }
-    closeList(); html += '<p>' + mdInline(line) + '</p>'; i++;
+    // setext 제목: 다음 줄이 ===(h1) 또는 ---(h2) 이면 윗줄을 제목으로
+    if (i+1 < lines.length && line.trim()) {
+      const nxt = lines[i+1].trim();
+      if (/^={3,}$/.test(nxt)) { const id='sec'+toc.length; toc.push({lvl:1,txt:line.trim(),id}); html+=`<h1 id="${id}">${mdInline(line.trim())}</h1>`; i+=2; continue; }
+      if (/^-{3,}$/.test(nxt)) { const id='sec'+toc.length; toc.push({lvl:2,txt:line.trim(),id}); html+=`<h2 id="${id}">${mdInline(line.trim())}</h2>`; i+=2; continue; }
+    }
+    // 문장 중간/끝의 대시 장식(------) 제거
+    let pline = line.replace(/\s*[-—=]{4,}\s*/g, ' ').replace(/\s{2,}/g,' ').trim();
+    if (!pline) { i++; continue; }
+    closeList(); html += '<p>' + mdInline(pline) + '</p>'; i++;
   }
   closeList();
   return { html, toc };
@@ -2625,10 +2636,33 @@ function openDoneList() {
         <button class="btn btn-green" style="padding:5px 11px;font-size:11px" onclick="pdfDone(${i})">📄 PDF</button>
         <button class="btn btn-purple" style="padding:5px 11px;font-size:11px" onclick="regenDoneCover(${i})">🎨 이미지 ${ (p.designs&&p.designs.length)?'추가':'생성' }</button>
         <button class="btn btn-purple" style="padding:5px 11px;font-size:11px" onclick="showUploadGuide(completedProjects[${i}].project)">📤 올리는 법</button>
+        <button class="btn btn-red" style="padding:5px 11px;font-size:11px" onclick="deleteDone(${i})">🗑️ 삭제</button>
       </div>
     </div>
   `).join('');
-  openModal('doneModal', `📋 완료 프로젝트 (${completedProjects.length}건)`, list, [{label:'닫기',cls:'btn-accent',action:'closeModal()'}]);
+  openModal('doneModal', `📋 완료 프로젝트 (${completedProjects.length}건)`, list, [
+    {label:'🗑️ 전체 삭제', cls:'btn-red', action:'clearAllDone()'},
+    {label:'닫기', cls:'btn-accent', action:'closeModal()'},
+  ]);
+}
+
+function deleteDone(i) {
+  const p = completedProjects[i];
+  if (!p) return;
+  if (!confirm(`"${p.project.name}" 을(를) 완료목록에서 삭제할까요?`)) return;
+  completedProjects.splice(i, 1);
+  saveDone();          // Firebase·폰 동기화
+  openDoneList();      // 목록 갱신
+}
+
+function clearAllDone() {
+  if (!completedProjects.length) return;
+  if (!confirm(`완료목록 ${completedProjects.length}건을 모두 삭제할까요? (되돌릴 수 없어요)`)) return;
+  if (!confirm('정말 전부 지울까요?')) return;
+  completedProjects = [];
+  saveDone();
+  closeModal();
+  showNotif('🗑️ 정리 완료', '완료목록을 모두 비웠어요.', [], true);
 }
 
 function viewDoneResult(i) {
