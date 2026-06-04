@@ -1882,6 +1882,10 @@ body{font-family:'Noto Serif KR',serif;color:var(--ink);line-height:1.95;font-si
 .toc-row::after{content:target-counter(attr(href),page);font-family:'Noto Sans KR';color:#9aa0ad;font-size:10pt;padding-left:10px}
 
 /* ── 본문 */
+/* 페이지 넘김 규칙: 문장·항목·표·인용 안 잘림, 소제목은 내용과 함께 다음 장으로 */
+h1,h2,h3,h4{break-after:avoid;break-inside:avoid}
+p,li,blockquote,tr,img{break-inside:avoid}
+p{orphans:2;widows:2}
 h1{font-family:'Noto Sans KR';font-weight:900;font-size:21pt;color:var(--head);margin:0 0 4px;break-before:page;line-height:1.34;word-break:keep-all}
 h1:first-of-type{break-before:avoid}
 h1::after{content:'';display:block;width:56px;height:3px;background:var(--accent);margin:16px 0 10px;border-radius:2px}
