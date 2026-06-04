@@ -2420,10 +2420,8 @@ function openBriefModal() {
   }
   const items = cloudBrief.items.map((it, i) => `
     <div style="background:var(--card);border:1px solid var(--border);border-left:3px solid var(--green);border-radius:11px;padding:13px;margin-bottom:10px">
-      <div style="display:flex;justify-content:space-between;gap:8px;align-items:flex-start;margin-bottom:6px">
-        <div style="font-weight:700;font-size:14px;color:var(--green)">${i+1}. ${it.title}</div>
-        <div style="font-size:10px;color:var(--accent);white-space:nowrap;background:#00e5ff10;border:1px solid #00e5ff33;border-radius:10px;padding:2px 8px">${it.potential||''}</div>
-      </div>
+      <div style="font-weight:700;font-size:14px;color:var(--green);margin-bottom:6px;word-break:keep-all;line-height:1.5">${i+1}. ${it.title}</div>
+      ${it.potential?`<div style="display:inline-block;font-size:10px;color:var(--accent);background:#00e5ff10;border:1px solid #00e5ff33;border-radius:8px;padding:3px 9px;margin-bottom:8px;line-height:1.5;word-break:keep-all">💰 ${String(it.potential).replace(/\s*\(.*$/,'').slice(0,40)}</div>`:''}
       ${it.trend?`<div style="font-size:11px;color:var(--text);line-height:1.6;margin-bottom:5px"><b style="color:var(--muted)">📈 트렌드:</b> ${it.trend}</div>`:''}
       ${it.why_now?`<div style="font-size:11px;color:var(--text);line-height:1.6;margin-bottom:5px"><b style="color:var(--muted)">⏰ 왜 지금:</b> ${it.why_now}</div>`:''}
       ${it.how_to_monetize?`<div style="font-size:11px;color:var(--text);line-height:1.6"><b style="color:var(--muted)">💰 수익화:</b> ${it.how_to_monetize}</div>`:''}
